@@ -2,14 +2,13 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Lilita+One&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Saira+Semi+Condensed:wght@300;500&display=swap">
 <style>
-/* Layout: jedna kolumna jak przyrząd — pasek stanu, okrągła tarcza na całą szerokość, pod nią pad przechyłu i akcje */
+/* Layout: czarna kolumna jak przyrząd — cichy pasek stanu, tarcza-kompas na całą szerokość, pod nią sterowanie symulacją. Czerń #000, by AMOLED wygaszał piksele */
 :root{
-  --bg:#0b1315; --panel:#122125; --line:#263c40; --ink:#e7efe9; --muted:#8aa49f;
-  --face:#0e3634; --face-hi:#18524d; --brass:#e8c67a; --coral:#ff7a59;
-  --ok:#8ee3b4; --info:#7cc6fe;
-  --display:'Lilita One','Arial Rounded MT Bold',system-ui,sans-serif;
+  --bg:#000; --line:#262626; --ink:#e9e7e2; --muted:#77756f; --dim:#3a3936;
+  --needle:#ff3b2f; --ok:#7fd6a4; --warn:#e8c46a; --info:#7cc6fe;
+  --display:'Saira Semi Condensed','Arial Narrow',system-ui,sans-serif;
   --mono:'JetBrains Mono',ui-monospace,'SFMono-Regular',Menlo,monospace;
   --ui:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
   color-scheme:dark;
@@ -19,30 +18,30 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);margin:0}
 .app{min-height:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:14px;max-width:540px;margin:0 auto;
   padding-block:14px 22px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 header{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
-h1{font-family:var(--display);font-weight:400;font-size:1.55rem;letter-spacing:.01em;margin:0;text-wrap:balance}
-.chip{font-family:var(--mono);font-size:.72rem;text-transform:uppercase;letter-spacing:.09em;padding:5px 10px;border-radius:999px;border:1px solid var(--line);color:var(--ok);display:inline-flex;gap:7px;align-items:center}
-.chip::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
-.chip[data-s="peel"]{color:var(--brass)}
-.chip[data-s="lost"]{color:var(--coral)}
+h1{font-family:var(--display);font-weight:500;font-size:.95rem;letter-spacing:.22em;text-transform:uppercase;margin:0;color:var(--muted)}
+.chip{font-family:var(--mono);font-size:.7rem;text-transform:uppercase;letter-spacing:.1em;color:var(--ok);display:inline-flex;gap:7px;align-items:center}
+.chip::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.chip[data-s="peel"]{color:var(--warn)}
+.chip[data-s="lost"]{color:var(--needle)}
 .chip[data-s="repair"]{color:var(--info)}
-.readout{font-family:var(--mono);font-size:.74rem;color:var(--muted);font-variant-numeric:tabular-nums;margin:-6px 0 0;letter-spacing:.02em}
+.readout{font-family:var(--mono);font-size:.7rem;color:var(--dim);font-variant-numeric:tabular-nums;margin:-8px 0 0;letter-spacing:.03em}
 .stage{position:relative;width:100%;max-width:100%;aspect-ratio:1/1}
 canvas{width:100%;height:100%;display:block;touch-action:none}
 .controls{display:grid;grid-template-columns:auto minmax(0,1fr);gap:16px;align-items:center}
 .padwrap{display:flex;flex-direction:column;align-items:center;gap:6px}
-.pad{width:132px;height:132px;border-radius:50%;position:relative;touch-action:none;cursor:grab;background:var(--panel);border:1px solid var(--line)}
+.pad{width:128px;height:128px;border-radius:50%;position:relative;touch-action:none;cursor:grab;background:var(--bg);border:1px solid var(--line)}
 .pad:active{cursor:grabbing}
 .ring{position:absolute;left:50%;top:50%;border:1px dashed var(--line);border-radius:50%;transform:translate(-50%,-50%);pointer-events:none}
-.ring span{position:absolute;top:-8px;left:50%;transform:translateX(-50%);font:500 9px var(--mono);color:var(--muted);background:var(--panel);padding:0 3px}
-.knob{position:absolute;width:30px;height:30px;margin:-15px 0 0 -15px;left:50%;top:50%;border-radius:50%;background:var(--brass);box-shadow:0 3px 8px rgba(0,0,0,.45);pointer-events:none}
-.padlabel{font:500 .7rem var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.ring span{position:absolute;top:-7px;left:50%;transform:translateX(-50%);font:400 9px var(--mono);color:var(--muted);background:var(--bg);padding:0 3px}
+.knob{position:absolute;width:22px;height:22px;margin:-11px 0 0 -11px;left:50%;top:50%;border-radius:50%;border:2px solid var(--ink);box-sizing:border-box;pointer-events:none}
+.padlabel{font:400 .66rem var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.1em}
 .actions{display:flex;flex-direction:column;gap:8px;min-width:0}
-button{font:600 .95rem var(--ui);padding:11px 14px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--ink);text-align:left;cursor:pointer}
-button.primary{background:var(--coral);color:#1d0c06;border-color:transparent}
-button:focus-visible,.pad:focus-visible{outline:2px solid var(--brass);outline-offset:3px}
-.hint{font-size:.86rem;color:var(--muted);line-height:1.55;margin:0;max-width:62ch}
-.hint b{color:var(--ink);font-weight:600}
-.note{font-size:.84rem;line-height:1.5;margin:0;padding:10px 12px;border-radius:10px;border:1px solid var(--line);color:var(--ink);background:var(--panel)}
+button{font:500 .92rem var(--ui);padding:11px 14px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);text-align:left;cursor:pointer}
+button.primary{border-color:var(--needle);color:var(--needle)}
+button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+.hint{font-size:.84rem;color:var(--muted);line-height:1.55;margin:0;max-width:62ch}
+.hint b{color:var(--ink);font-weight:500}
+.note{font-size:.84rem;line-height:1.5;margin:0;padding:10px 12px;border-radius:10px;border:1px solid var(--line);color:var(--ink);background:var(--bg)}
 @media (max-width:350px){.controls{grid-template-columns:1fr;justify-items:center}.actions{width:100%}}
 </style>
 
@@ -53,7 +52,7 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--brass);outline-o
   </header>
   <p class="readout" id="readout">przechył 0° · wstrząs 0.00 · symulacja</p>
 
-  <div class="stage" id="stage"><canvas id="dial" aria-label="Tarcza zegara z cyframi jak naklejki, w środku poziom baterii"></canvas></div>
+  <div class="stage" id="stage"><canvas id="dial" aria-label="Tarcza zegara w stylu kompasu, w środku poziom baterii"></canvas></div>
 
   <section class="controls" id="simControls">
     <div class="padwrap">
@@ -72,80 +71,293 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--brass);outline-o
   </section>
   <p class="note" id="note" hidden></p>
 
-  <p class="hint" id="hint">Przeciągnij kulkę — pokazuje, w którą stronę opada tarcza. <b>Przechyl mocno (pow. ~55°)</b>, a część cyfr zacznie się powoli odklejać. <b>Potrząśnij w przechyleniu</b> — odpadną i będą stukać o brzeg. <b>Wypoziomuj i potrząśnij</b> — wrócą na miejsce, a wskazówki odnajdą godzinę jak igła kompasu.</p>
+  <p class="hint" id="hint">Przeciągnij kółko, żeby przechylić tarczę. <b>Lekki przechył</b> ugina wskazówki. <b>Mocny (pow. ~45°)</b> zrywa je ze sprzęgła i rozbuja. <b>Prawie pion</b> zaczyna odklejać cyfry, ale trzymają się na miejscu. <b>Potrząśnij w przechyleniu</b>, a zaczną spadać. <b>Połóż płasko i potrząśnij</b>, a wrócą, a wskazówki odnajdą godzinę jak igła kompasu.</p>
 </main>
 
 <script>
 (() => {
+  'use strict';
   const TAU = Math.PI * 2;
-  const cvs = document.getElementById('dial');
-  const ctx = cvs.getContext('2d');
-  const stage = document.getElementById('stage');
-  const chip = document.getElementById('chip');
-  const readout = document.getElementById('readout');
-  const note = document.getElementById('note');
-  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  let W = 300, R = 130, cx = 150, cy = 150, dpr = 1;
-  function resize() {
-    const w = stage.getBoundingClientRect().width;
-    dpr = Math.min(window.devicePixelRatio || 1, 3);
-    cvs.width = Math.round(w * dpr); cvs.height = Math.round(w * dpr);
-    W = w; cx = cy = w / 2; R = w * 0.44;
-  }
-  new ResizeObserver(resize).observe(stage); resize();
+  /* =====================================================================
+     KONFIGURACJA — te same stałe przenosisz 1:1 do ESP32.
+     Jednostki: promień tarczy = 1, czas w sekundach, kąty w radianach,
+     G = wektor grawitacji w płaszczyźnie ekranu w „g” (|G| = sin przechyłu).
+     ===================================================================== */
+  const CFG = {
+    dt: 1 / 120,            // stały krok fizyki
+    gAcc: 6.0,              // 1 g w jednostkach tarczy na s²
+    rimR: 0.965,            // wewnętrzna krawędź, o którą stukają cyfry
+    homeR: 0.74,            // promień, na którym przyklejone są cyfry
 
-  // ---------- stan wejścia ----------
-  const G = { x: 0, y: 0 };        // wektor grawitacji w układzie ekranu, |G| = sin(kąta przechyłu)
-  const Gslow = { x: 0, y: 0 };    // mocno wygładzony — do sprawdzania „czy leży poziomo”
-  const Graw = { x: 0, y: 0 };
-  let tiltSpeed = 0, shake = 0, prevShake = 0, inputMode = 'sim';
+    // Wskazówka = wahadło na osi + sprężynowe sprzęgło mechanizmu.
+    // kappa: moment grawitacji przy |G|=1, k: sztywność sprzęgła,
+    // tauMax: maksymalny moment sprzęgła (powyżej wskazówka się „zrywa”),
+    // cFree: tłumienie przy przechyle (długie bujanie), cLevel: przy poziomie (igła kompasu uspokaja się w kilku wahnięciach),
+    // mu: tarcie suche na osi.
+    hands: {
+      h: { I: 1.8, kappa: 52, k: 58, tauMax: 37, cFree: 0.45, cLevel: 2.4, mu: 0.22, len: 0.50, wid: 0.075, tail: 0.30, front: 'ink' },
+      m: { I: 1.0, kappa: 40, k: 42, tauMax: 29, cFree: 0.28, cLevel: 1.5, mu: 0.15, len: 0.74, wid: 0.06, tail: 0.34, front: 'needle' }
+    },
 
-  // ---------- naklejki ----------
-  const COLORS = ['#f6c34a', '#ff7a59', '#7cc6fe', '#8ee3b4', '#c7a6ff', '#ffb4c8'];
-  const digits = [];
-  for (let n = 1; n <= 12; n++) {
-    const a = n / 12 * TAU;
-    const hx = 0.72 * Math.sin(a), hy = -0.72 * Math.cos(a);
-    digits.push({ n, a, hx, hy, x: hx, y: hy, vx: 0, vy: 0, rot: 0, vr: 0,
-      state: 'stuck', peel: 0, weak: Math.random(), sw: 0, swv: 0, delay: 0,
-      color: COLORS[(n * 5) % COLORS.length], r: n >= 10 ? 0.13 : 0.105, lastTick: 0 });
-  }
-  // gwarantujemy, że mniej więcej połowa jest „słaba”
-  digits.forEach((d, i) => { if (i % 2 === 0) d.weak = 0.55 + Math.random() * 0.45; });
+    // Odklejanie: zaczyna się dopiero blisko pionu i nie przesuwa cyfr.
+    peelStart: 0.92,        // |G| ≈ sin(67°)
+    peelRate: 0.30,         // jak szybko rośnie odklejenie przy pełnym pionie
+    peelRelax: 0.12,        // jak szybko wraca, gdy przechył zmaleje
+    detachMinTilt: 0.34,    // wstrząs zrywa cyfry dopiero od ~20° przechyłu
+    detachRate: 1.4,        // tempo zrywania nieodklejonych cyfr podczas wstrząsu
+    shakeOn: 0.5,           // próg „zdarzenia potrząśnięcia”
 
-  // ---------- wskazówki ----------
-  const hands = {
-    h: { th: 0, w: 0, I: 1.7, len: 0.48, wid: 0.065, col: 'brass' },
-    m: { th: 0, w: 0, I: 1.0, len: 0.68, wid: 0.048, col: 'brass' },
-    s: { th: 0, w: 0, I: 0.45, len: 0.80, wid: 0.018, col: 'coral' }
+    // Bryły cyfr (kapsuły dopasowane do kształtu znaku).
+    restitution: 0.30,      // odbicie cyfra–cyfra
+    rimRestitution: 0.36,   // odbicie od brzegu
+    friction: 0.38,         // tarcie cyfra–cyfra i cyfra–brzeg
+    faceFriction: 0.45,     // tarcie o tarczę (μ); cyfry ruszają przy tan(kąta) > μ, ok. 24°
+    iterations: 10,
+    posIterations: 3,
+    slop: 0.0015,
+    baumgarte: 0.6,
+    soundMin: 0.16          // minimalna prędkość zderzenia, która daje dźwięk
   };
-  let mode = 'ok'; // ok | lost | repair
-  function timeAngles() {
-    const t = new Date();
-    const s = t.getSeconds(), m = t.getMinutes() + s / 60, h = (t.getHours() % 12) + m / 60;
-    return { h: h / 12 * TAU, m: m / 60 * TAU, s: s / 60 * TAU };
-  }
-  { const ta = timeAngles(); for (const k in hands) hands[k].th = ta[k]; }
+
+  /* ---------------------------- matematyka ---------------------------- */
+  const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
   const wrap = a => ((a + Math.PI) % TAU + TAU) % TAU - Math.PI;
 
-  // ---------- dźwięk ----------
-  let ac = null;
-  function ensureAudio() { if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} } if (ac && ac.state === 'suspended') ac.resume().catch(() => {}); }
-  addEventListener('pointerdown', ensureAudio, { passive: true });
-  function tick(strength, freq) {
-    if (!ac || ac.state !== 'running') return;
-    const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain(), f = ac.createBiquadFilter();
-    o.type = 'triangle'; o.frequency.value = freq || (1300 + Math.random() * 700);
-    f.type = 'bandpass'; f.frequency.value = o.frequency.value; f.Q.value = 4;
-    const v = Math.min(0.35, 0.05 + strength * 0.22);
-    g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
-    o.connect(f); f.connect(g); g.connect(ac.destination); o.start(t); o.stop(t + 0.07);
-    if (strength > 0.6 && navigator.vibrate) { try { navigator.vibrate(8); } catch (e) {} }
+  function closestOnSeg(px, py, ax, ay, bx, by) {
+    const dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy;
+    const t = L2 > 1e-12 ? clamp(((px - ax) * dx + (py - ay) * dy) / L2, 0, 1) : 0;
+    return [ax + dx * t, ay + dy * t];
+  }
+  // najbliższe punkty dwóch odcinków (Ericson, Real-Time Collision Detection)
+  function segSeg(p1x, p1y, q1x, q1y, p2x, p2y, q2x, q2y) {
+    const d1x = q1x - p1x, d1y = q1y - p1y, d2x = q2x - p2x, d2y = q2y - p2y, rx = p1x - p2x, ry = p1y - p2y;
+    const a = d1x * d1x + d1y * d1y, e = d2x * d2x + d2y * d2y, f = d2x * rx + d2y * ry, EPS = 1e-10;
+    let s, t;
+    if (a <= EPS && e <= EPS) { s = t = 0; }
+    else if (a <= EPS) { s = 0; t = clamp(f / e, 0, 1); }
+    else {
+      const c = d1x * rx + d1y * ry;
+      if (e <= EPS) { t = 0; s = clamp(-c / a, 0, 1); }
+      else {
+        const b = d1x * d2x + d1y * d2y, den = a * e - b * b;
+        s = den > EPS ? clamp((b * f - c * e) / den, 0, 1) : 0;
+        t = (b * s + f) / e;
+        if (t < 0) { t = 0; s = clamp(-c / a, 0, 1); }
+        else if (t > 1) { t = 1; s = clamp((b - c) / a, 0, 1); }
+      }
+    }
+    return [p1x + d1x * s, p1y + d1y * s, p2x + d2x * t, p2y + d2y * t];
   }
 
-  // ---------- bateria ----------
-  let battery = null; // {level, charging}
+  /* ------------------------------ stan ------------------------------- */
+  const Gf = { x: 0, y: 0 };   // grawitacja + przyspieszenia ruchu (szybka) — napędza fizykę
+  const Gs = { x: 0, y: 0 };   // wolno wygładzona — „jak bardzo jest przechylony”
+  const padG = { x: 0, y: 0 };
+  const sensor = { x: 0, y: 0, omega: 0, rotAcc: 0, lastT: 0, shakePeak: 0 };
+  const simShake = { t: 1, dur: 0, amp: 0, dir: 0 };
+  let inputMode = 'sim', shake = 0, prevShake = 0, tiltSpeed = 0, rotAcc = 0;
+  let mode = 'ok';              // ok | lost | repair
+  let flatTime = 0, simTime = 0;
+
+  const digits = [];
+  const hands = { h: { th: 0, w: 0 }, m: { th: 0, w: 0 } };
+  function timeAngles() {
+    const t = new Date();
+    const m = t.getMinutes() + t.getSeconds() / 60 + t.getMilliseconds() / 60000, h = (t.getHours() % 12) + m / 60;
+    return { h: h / 12 * TAU, m: m / 60 * TAU };
+  }
+  { const ta = timeAngles(); hands.h.th = ta.h; hands.m.th = ta.m; }
+
+  /* ------------------------- cyfry i ich bryły ------------------------- */
+  const FONT_D = "'Saira Semi Condensed','Arial Narrow',system-ui,sans-serif";
+  const FONT_M = "'JetBrains Mono',ui-monospace,Menlo,monospace";
+  const cardinal = n => n % 3 === 0;
+
+  function buildDigits() {
+    const mc = document.createElement('canvas').getContext('2d');
+    const REF = 1000;
+    for (let n = 1; n <= 12; n++) {
+      const size = cardinal(n) ? 0.17 : 0.14, weight = cardinal(n) ? 500 : 300;
+      mc.font = `${weight} ${size * REF}px ${FONT_D}`;
+      const mt = mc.measureText(String(n));
+      const L = mt.actualBoundingBoxLeft || 0, Rr = mt.actualBoundingBoxRight || mt.width;
+      const asc = mt.actualBoundingBoxAscent || size * REF * 0.72, desc = mt.actualBoundingBoxDescent || 0;
+      const w = (L + Rr) / REF + 0.012, h = (asc + desc) / REF + 0.012;
+      // przesunięcie tak, by środek obrysu znaku leżał w środku bryły
+      const ox = -(Rr - L) / 2 / REF, oy = (asc - desc) / 2 / REF;
+      // kapsuła: odcinek wzdłuż dłuższego boku, promień = połowa krótszego
+      const tall = h >= w, r = (tall ? w : h) / 2, hl = Math.max(0, ((tall ? h : w) - 2 * r) / 2);
+      const m = w * h, I = m * (w * w + h * h) / 12;
+      const a = n / 12 * TAU, hx = CFG.homeR * Math.sin(a), hy = -CFG.homeR * Math.cos(a);
+      digits.push({
+        n, a, hx, hy, size, weight, ox, oy, w, h, r, hl,
+        seg: tall ? [0, hl] : [hl, 0],
+        im: 1 / m, ii: 1 / I,
+        x: hx, y: hy, ang: 0, vx: 0, vy: 0, w0: 0, wv: 0,
+        state: 'stuck', peel: 0, settle: 0, weak: 0, sgn: n % 2 ? 1 : -1, phase: Math.random() * TAU,
+        delay: 0, lastSnd: -1
+      });
+    }
+    // mniej więcej połowa cyfr jest „słabiej przyklejona”
+    digits.forEach((d, i) => { d.weak = (i % 2 ? 0.15 : 0.6) + Math.random() * 0.4; });
+  }
+
+  function ends(b) {
+    const c = Math.cos(b.ang), s = Math.sin(b.ang);
+    const ex = b.seg[0] * c - b.seg[1] * s, ey = b.seg[0] * s + b.seg[1] * c;
+    return [b.x - ex, b.y - ey, b.x + ex, b.y + ey];
+  }
+
+  /* --------------------------- kontakty ---------------------------- */
+  function pushFound(found, A, px, py, nx, ny, pen) {
+    for (const f of found) {
+      if ((f.px - px) ** 2 + (f.py - py) ** 2 < 0.0003) { if (pen > f.pen) Object.assign(f, { px, py, nx, ny, pen }); return; }
+    }
+    found.push({ px, py, nx, ny, pen });
+  }
+
+  function collidePair(A, B, out) {
+    const dx = B.x - A.x, dy = B.y - A.y, rs = A.r + B.r, lim = A.hl + B.hl + rs;
+    if (dx * dx + dy * dy > lim * lim) return;
+    const ea = ends(A), eb = ends(B);
+    const cand = [segSeg(ea[0], ea[1], ea[2], ea[3], eb[0], eb[1], eb[2], eb[3])];
+    for (let i = 0; i < 4; i += 2) {
+      const q = closestOnSeg(ea[i], ea[i + 1], eb[0], eb[1], eb[2], eb[3]); cand.push([ea[i], ea[i + 1], q[0], q[1]]);
+      const p = closestOnSeg(eb[i], eb[i + 1], ea[0], ea[1], ea[2], ea[3]); cand.push([p[0], p[1], eb[i], eb[i + 1]]);
+    }
+    const found = [];
+    for (const c of cand) {
+      let nx = c[2] - c[0], ny = c[3] - c[1], d = Math.hypot(nx, ny);
+      const pen = rs - d;
+      if (pen <= 0) continue;
+      if (d < 1e-6) { nx = dx; ny = dy; d = Math.hypot(nx, ny); if (d < 1e-6) { nx = 1; ny = 0; d = 1; } }
+      nx /= d; ny /= d;
+      pushFound(found, A, c[0] + nx * (A.r - pen / 2), c[1] + ny * (A.r - pen / 2), nx, ny, pen);
+    }
+    found.sort((p, q) => q.pen - p.pen);
+    for (let i = 0; i < Math.min(2, found.length); i++) out.push(contact(A, B, found[i]));
+  }
+
+  function collideRim(A, out) {
+    const e = ends(A), found = [];
+    const count = A.hl < 0.004 ? 1 : 2;
+    for (let i = 0; i < count * 2; i += 2) {
+      const px = e[i], py = e[i + 1], d = Math.hypot(px, py), pen = d + A.r - CFG.rimR;
+      if (pen > 0 && d > 1e-6) {
+        const nx = px / d, ny = py / d;
+        pushFound(found, A, px + nx * (A.r - pen / 2), py + ny * (A.r - pen / 2), nx, ny, pen);
+      }
+    }
+    for (const f of found) out.push(contact(A, null, f));
+  }
+
+  function contact(A, B, f) { return { A, B, px: f.px, py: f.py, nx: f.nx, ny: f.ny, pen: f.pen, jn: 0, jt: 0 }; }
+
+  function relVel(c, nx, ny) {
+    const A = c.A, B = c.B;
+    const vax = A.vx - A.wv * c.ray, vay = A.vy + A.wv * c.rax;
+    let vbx = 0, vby = 0;
+    if (B) { vbx = B.vx - B.wv * c.rby; vby = B.vy + B.wv * c.rbx; }
+    return (vbx - vax) * nx + (vby - vay) * ny;
+  }
+  function applyImpulse(c, ix, iy) {
+    const A = c.A, B = c.B;
+    A.vx -= ix * A.im; A.vy -= iy * A.im; A.wv -= A.ii * (c.rax * iy - c.ray * ix);
+    if (B) { B.vx += ix * B.im; B.vy += iy * B.im; B.wv += B.ii * (c.rbx * iy - c.rby * ix); }
+  }
+  function prestep(c) {
+    const A = c.A, B = c.B;
+    c.rax = c.px - A.x; c.ray = c.py - A.y;
+    c.rbx = B ? c.px - B.x : 0; c.rby = B ? c.py - B.y : 0;
+    const imB = B ? B.im : 0, iiB = B ? B.ii : 0;
+    const rnA = c.rax * c.ny - c.ray * c.nx, rnB = c.rbx * c.ny - c.rby * c.nx;
+    c.kN = A.im + imB + A.ii * rnA * rnA + iiB * rnB * rnB;
+    const tx = -c.ny, ty = c.nx;
+    const rtA = c.rax * ty - c.ray * tx, rtB = c.rbx * ty - c.rby * tx;
+    c.kT = A.im + imB + A.ii * rtA * rtA + iiB * rtB * rtB;
+    const vn = relVel(c, c.nx, c.ny);
+    const e = B ? CFG.restitution : CFG.rimRestitution;
+    c.bounce = vn < -0.12 ? -e * vn : 0;
+    c.impact = -vn;
+  }
+  function solveContact(c) {
+    let vn = relVel(c, c.nx, c.ny);
+    let dj = (c.bounce - vn) / c.kN;
+    const old = c.jn; c.jn = Math.max(0, old + dj); dj = c.jn - old;
+    applyImpulse(c, c.nx * dj, c.ny * dj);
+    const tx = -c.ny, ty = c.nx;
+    const vt = relVel(c, tx, ty);
+    let dt = -vt / c.kT;
+    const maxF = CFG.friction * c.jn, oldT = c.jt;
+    c.jt = clamp(oldT + dt, -maxF, maxF); dt = c.jt - oldT;
+    applyImpulse(c, tx * dt, ty * dt);
+  }
+  function correctContact(c) {
+    const A = c.A, B = c.B, sum = A.im + (B ? B.im : 0);
+    const C = Math.max(0, c.pen - CFG.slop) * CFG.baumgarte / sum;
+    A.x -= c.nx * C * A.im; A.y -= c.ny * C * A.im;
+    if (B) { B.x += c.nx * C * B.im; B.y += c.ny * C * B.im; }
+  }
+  function gatherContacts(loose) {
+    const out = [];
+    for (let i = 0; i < loose.length; i++) {
+      collideRim(loose[i], out);
+      for (let j = i + 1; j < loose.length; j++) collidePair(loose[i], loose[j], out);
+    }
+    return out;
+  }
+
+  /* ----------------------------- dźwięk ----------------------------- */
+  const Snd = { ac: null, noise: null, times: [] };
+  function ensureAudio() {
+    try {
+      if (!Snd.ac) {
+        const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+        Snd.ac = new AC();
+        const len = (Snd.ac.sampleRate * 0.3) | 0, buf = Snd.ac.createBuffer(1, len, Snd.ac.sampleRate), ch = buf.getChannelData(0);
+        for (let i = 0; i < len; i++) ch[i] = Math.random() * 2 - 1;
+        Snd.noise = buf;
+      }
+      if (Snd.ac.state === 'suspended') Snd.ac.resume().catch(() => {});
+    } catch (e) {}
+  }
+  addEventListener('pointerdown', ensureAudio, { passive: true });
+  addEventListener('touchend', ensureAudio, { passive: true });
+  const VOICES = {
+    rim:   { f: 760,  fj: 220, q: 5,   dur: 0.075, tone: 0.55, noise: 0.65 },  // tępe „stuk” o krawędź
+    pair:  { f: 2150, fj: 500, q: 8,   dur: 0.04,  tone: 0.45, noise: 0.4 },   // jasne „klik” cyfra o cyfrę
+    tear:  { f: 2800, fj: 700, q: 1.1, dur: 0.16,  tone: 0,    noise: 0.9 },   // oderwanie naklejki
+    stick: { f: 420,  fj: 40,  q: 3,   dur: 0.09,  tone: 0.8,  noise: 0.2 }    // przyklejenie z powrotem
+  };
+  function play(kind, vol) {
+    const ac = Snd.ac; if (!ac || ac.state !== 'running' || vol < 0.02) return;
+    const now = ac.currentTime;
+    Snd.times = Snd.times.filter(t => now - t < 1); if (Snd.times.length > 30) return; Snd.times.push(now);
+    const P = VOICES[kind], f = P.f + (Math.random() - 0.5) * P.fj, v = Math.min(0.55, vol * 0.5);
+    const out = ac.createGain(); out.connect(ac.destination);
+    if (P.tone) {
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.type = 'triangle'; o.frequency.setValueAtTime(f, now); o.frequency.exponentialRampToValueAtTime(f * 0.7, now + P.dur);
+      g.gain.setValueAtTime(v * P.tone, now); g.gain.exponentialRampToValueAtTime(0.0001, now + P.dur);
+      o.connect(g); g.connect(out); o.start(now); o.stop(now + P.dur + 0.02);
+    }
+    if (P.noise) {
+      const s = ac.createBufferSource(), bp = ac.createBiquadFilter(), g = ac.createGain();
+      s.buffer = Snd.noise; bp.type = 'bandpass'; bp.frequency.value = f * 1.5; bp.Q.value = P.q;
+      g.gain.setValueAtTime(v * P.noise, now); g.gain.exponentialRampToValueAtTime(0.0001, now + P.dur * 0.75);
+      s.connect(bp); bp.connect(g); g.connect(out); s.start(now, Math.random() * 0.12); s.stop(now + P.dur);
+    }
+    if (kind === 'rim' && vol > 0.6 && navigator.vibrate) { try { navigator.vibrate(10); } catch (e) {} }
+  }
+  function impactSound(body, kind, speed) {
+    if (speed < CFG.soundMin || simTime - body.lastSnd < 0.045) return;
+    body.lastSnd = simTime;
+    play(kind, clamp((speed - CFG.soundMin) / 1.6, 0.06, 1));
+  }
+
+  /* ----------------------------- bateria ----------------------------- */
+  let battery = null;
   if (navigator.getBattery) {
     navigator.getBattery().then(b => {
       const upd = () => { battery = { level: b.level, charging: b.charging }; };
@@ -153,329 +365,306 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--brass);outline-o
     }).catch(() => {});
   }
 
-  // ---------- fizyka ----------
-  let flatTime = 0, lastUi = '';
-  function update(dt, now) {
-    // wygładzanie wejścia
-    const k = 1 - Math.exp(-dt * 14);
-    const px = G.x, py = G.y;
-    G.x += (Graw.x - G.x) * k; G.y += (Graw.y - G.y) * k;
-    const ks = 1 - Math.exp(-dt * 2.5);
-    Gslow.x += (G.x - Gslow.x) * ks; Gslow.y += (G.y - Gslow.y) * ks;
-    const dGx = (G.x - px) / dt, dGy = (G.y - py) / dt;
-    tiltSpeed += (Math.hypot(dGx, dGy) - tiltSpeed) * (1 - Math.exp(-dt * 8));
-    const m = Math.min(1, Math.hypot(G.x, G.y));
-    const mSlow = Math.hypot(Gslow.x, Gslow.y);
-    const phi = Math.atan2(G.x, -G.y); // kierunek „w dół” jako kąt tarczy
-
+  /* ========================== KROK FIZYKI =========================== */
+  function stepInput(dt) {
     prevShake = shake;
-    shake = Math.max(0, shake - dt * 1.4);
-    const shakeEvent = shake > 0.5 && prevShake <= 0.5;
+    shake = Math.max(0, shake - dt * 1.2);
+    let tx, ty;
+    if (inputMode === 'sim') {
+      tx = padG.x; ty = padG.y;
+      if (simShake.t < simShake.dur) {
+        // potrząśnięcie = szybkie przyspieszenia w płaszczyźnie ekranu
+        const env = 1 - simShake.t / simShake.dur, ph = TAU * 7.5 * simShake.t;
+        const a = simShake.amp * env * Math.sin(ph), b = simShake.amp * 0.4 * env * Math.sin(ph * 1.37 + 1);
+        tx += Math.cos(simShake.dir) * a - Math.sin(simShake.dir) * b;
+        ty += Math.sin(simShake.dir) * a + Math.cos(simShake.dir) * b;
+        shake = Math.max(shake, simShake.amp * env);
+        simShake.t += dt;
+      }
+      rotAcc = 0;
+    } else {
+      tx = sensor.x; ty = sensor.y;
+      shake = Math.max(shake, sensor.shakePeak); sensor.shakePeak = 0;
+      rotAcc += (sensor.rotAcc - rotAcc) * (1 - Math.exp(-dt * 20));
+    }
+    const px = Gf.x, py = Gf.y;
+    const kf = 1 - Math.exp(-dt * 35);
+    Gf.x += (tx - Gf.x) * kf; Gf.y += (ty - Gf.y) * kf;
+    const l = Math.hypot(Gf.x, Gf.y); if (l > 3) { Gf.x *= 3 / l; Gf.y *= 3 / l; }
+    const ks = 1 - Math.exp(-dt * 2.5);
+    Gs.x += (Gf.x - Gs.x) * ks; Gs.y += (Gf.y - Gs.y) * ks;
+    tiltSpeed += (Math.hypot(Gf.x - px, Gf.y - py) / dt - tiltSpeed) * (1 - Math.exp(-dt * 8));
+  }
 
-    // --- naklejki przyklejone: kołysanie, odklejanie
+  function stepHands(dt) {
+    const g = Math.hypot(Gf.x, Gf.y), phi = Math.atan2(Gf.x, -Gf.y);
+    const engaged = mode !== 'lost';
+    const ta = timeAngles();
+    for (const key of ['h', 'm']) {
+      const P = CFG.hands[key], H = hands[key];
+      let tau = P.kappa * g * Math.sin(phi - H.th);                    // grawitacja ciągnie ciężki grot w dół
+      if (engaged) tau += P.tauMax * Math.tanh(P.k * wrap(ta[key] - H.th) / P.tauMax); // sprzęgło z ograniczonym momentem
+      tau += P.I * rotAcc;                                              // obrót telefonu w płaszczyźnie ekranu
+      const lvl = 1 - Math.min(1, Math.hypot(Gs.x, Gs.y) / 0.5);
+      tau -= (P.cFree + (P.cLevel - P.cFree) * lvl * lvl) * H.w;        // tłumienie lepkie
+      if (Math.abs(H.w) < 0.02 && Math.abs(tau) <= P.mu) { H.w = 0; continue; } // tarcie statyczne trzyma
+      tau -= P.mu * Math.sign(H.w || tau);                              // tarcie suche
+      H.w += tau / P.I * dt;
+      H.th += H.w * dt;
+    }
+  }
+
+  function detach(d) {
+    d.state = 'fallen';
+    d.x = d.hx; d.y = d.hy; d.ang = d.peel * 0.08 * d.sgn;
+    d.vx = 0; d.vy = 0; d.wv = (Math.random() - 0.5) * 3;
+    d.peel = 0;
+    play('tear', 0.35 + Math.random() * 0.3);
+  }
+
+  function step(dt) {
+    simTime += dt;
+    stepInput(dt);
+    const gs = Math.hypot(Gs.x, Gs.y);
+    const shakeEvent = shake > CFG.shakeOn && prevShake <= CFG.shakeOn;
+
+    // 1) cyfry przyklejone: odklejanie tylko przy niemal pionowej tarczy, bez przesuwania
     for (const d of digits) {
       if (d.state !== 'stuck') continue;
-      const tx = Math.cos(d.a), ty = Math.sin(d.a);
-      d.swv += (dGx * tx + dGy * ty) * 2.2 * dt * 60 * 0.016;
-      d.swv += (-90 * d.sw - 7 * d.swv) * dt;
-      d.sw += d.swv * dt;
-      if (m > 0.8 && d.weak > 0.5) {
-        const rate = (0.07 + 0.4 * Math.min(tiltSpeed, 2)) * ((m - 0.8) / 0.2) * (0.6 + d.weak);
-        d.peel = Math.min(1, d.peel + rate * dt);
-      } else if (m < 0.5) {
-        d.peel = Math.max(0, d.peel - dt * 0.05);
-      }
+      if (gs > CFG.peelStart) d.peel = Math.min(1, d.peel + dt * CFG.peelRate * (gs - CFG.peelStart) / (1 - CFG.peelStart) * (0.5 + d.weak));
+      else d.peel = Math.max(0, d.peel - dt * CFG.peelRelax);
+      d.settle = Math.max(0, d.settle - dt * 1.5);
     }
 
-    // --- odpadanie: wstrząs w przechyle
-    if (shake > 0.4 && m > 0.55) {
+    // 2) zrywanie: wstrząs przy przechylonej tarczy
+    if (shake > 0.4 && gs > CFG.detachMinTilt) {
+      const tiltF = clamp((gs - CFG.detachMinTilt) / (1 - CFG.detachMinTilt), 0, 1);
       for (const d of digits) {
-        const loose = d.state === 'stuck' && (d.peel > 0.2 || (m > 0.8 && shake > 0.8 && d.weak > 0.35 && Math.random() < dt * 2.5));
-        const knocked = d.state === 'returning';
-        if (loose || knocked) {
-          if (d.state === 'stuck') { d.x = d.hx + G.x * d.peel * 0.07; d.y = d.hy + G.y * d.peel * 0.07; d.rot = d.sw; d.vx = d.vy = 0; }
+        if (d.state === 'stuck') {
+          if (d.peel > 0.3 || Math.random() < dt * CFG.detachRate * shake * tiltF * (0.3 + d.weak)) detach(d);
+        } else if (d.state === 'returning') {
           d.state = 'fallen';
-          d.vx += G.x * 0.6 + (Math.random() - 0.5) * 1.2;
-          d.vy += G.y * 0.6 + (Math.random() - 0.5) * 1.2;
-          d.vr = (Math.random() - 0.5) * 9;
-          tick(0.5, 900);
         }
       }
     }
-    const anyFallen = digits.some(d => d.state === 'fallen');
-    if (anyFallen && mode !== 'lost') mode = 'lost';
+    if (digits.some(d => d.state === 'fallen')) mode = 'lost';
 
-    // --- naprawa: poziomo + wstrząs
-    if (mSlow < 0.22) flatTime += dt; else flatTime = 0;
+    // 3) naprawa: tarcza poziomo + potrząśnięcie
+    if (gs < 0.2) flatTime += dt; else flatTime = 0;
     if (mode === 'lost' && shakeEvent && flatTime > 0.3) {
       mode = 'repair';
       let i = 0;
-      for (const d of digits) if (d.state === 'fallen') { d.state = 'returning'; d.delay = 0.25 + (i++) * 0.22 + Math.random() * 0.2; }
+      for (const d of digits) if (d.state === 'fallen') { d.state = 'returning'; d.delay = 0.2 + (i++) * 0.2 + Math.random() * 0.15; }
     }
 
-    // --- luźne cyfry
-    const GA = 4.6;
-    for (const d of digits) {
-      if (d.state === 'fallen') {
-        d.vx += G.x * GA * dt; d.vy += G.y * GA * dt;
-        if (shake > 0.05) { d.vx += (Math.random() - 0.5) * shake * 30 * dt; d.vy += (Math.random() - 0.5) * shake * 30 * dt; d.vr += (Math.random() - 0.5) * shake * 40 * dt; }
-        const damp = Math.exp(-dt * (0.5 + 2.2 * (1 - m)));
-        d.vx *= damp; d.vy *= damp; d.vr *= Math.exp(-dt * 1.8);
-        d.x += d.vx * dt; d.y += d.vy * dt; d.rot += d.vr * dt;
-        const maxD = 0.9 - d.r, dist = Math.hypot(d.x, d.y);
-        if (dist > maxD) {
-          const nx = d.x / dist, ny = d.y / dist, vn = d.vx * nx + d.vy * ny;
-          if (vn > 0) {
-            const tvx = d.vx - vn * nx, tvy = d.vy - vn * ny;
-            d.vx = tvx * 0.88 - vn * 0.38 * nx; d.vy = tvy * 0.88 - vn * 0.38 * ny;
-            d.vr += (tvx * -ny + tvy * nx) * 4;
-            if (vn > 0.22 && now - d.lastTick > 70) { tick(Math.min(1, vn / 2)); d.lastTick = now; }
-          }
-          d.x = nx * maxD; d.y = ny * maxD;
-        }
-      } else if (d.state === 'returning') {
-        if (d.delay > 0) { d.delay -= dt; d.vx *= 0.9; d.vy *= 0.9; continue; }
-        const kk = 7, c = 2 * Math.sqrt(kk) * 0.85;
-        d.vx += (-kk * (d.x - d.hx) - c * d.vx) * dt; d.vy += (-kk * (d.y - d.hy) - c * d.vy) * dt;
-        d.vr += (-kk * 1.5 * wrap(d.rot) - c * d.vr) * dt;
-        d.x += d.vx * dt; d.y += d.vy * dt; d.rot += d.vr * dt;
-        if (Math.hypot(d.x - d.hx, d.y - d.hy) < 0.006 && Math.hypot(d.vx, d.vy) < 0.05) {
-          d.state = 'stuck'; d.peel = 0.35; d.sw = wrap(d.rot) * 0.5; d.swv = 0; d.rot = 0; tick(0.4, 520);
-        }
-      }
-    }
-    // zderzenia luźnych cyfr między sobą
+    // 4) luźne cyfry: siły
     const loose = digits.filter(d => d.state === 'fallen');
-    for (let i = 0; i < loose.length; i++) for (let j = i + 1; j < loose.length; j++) {
-      const a = loose[i], b = loose[j];
-      const dx = b.x - a.x, dy = b.y - a.y, dist = Math.hypot(dx, dy) || 1e-4, min = a.r + b.r;
-      if (dist < min) {
-        const nx = dx / dist, ny = dy / dist, push = (min - dist) / 2;
-        a.x -= nx * push; a.y -= ny * push; b.x += nx * push; b.y += ny * push;
-        const rv = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
-        if (rv < 0) {
-          const j2 = -(1 + 0.3) * rv / 2;
-          a.vx -= j2 * nx; a.vy -= j2 * ny; b.vx += j2 * nx; b.vy += j2 * ny;
-          if (-rv > 0.35 && now - a.lastTick > 70) { tick(Math.min(1, -rv / 2.5), 2100); a.lastTick = now; }
-        }
-      }
+    const cosT = Math.sqrt(Math.max(0, 1 - Math.min(1, gs) ** 2));   // nacisk na tarczę
+    const fric = CFG.faceFriction * CFG.gAcc * cosT;                  // maks. opóźnienie od tarcia o tarczę
+    const ax = Gf.x * CFG.gAcc, ay = Gf.y * CFG.gAcc, aMag = Math.hypot(ax, ay);
+    for (const d of loose) {
+      const sp = Math.hypot(d.vx, d.vy);
+      // tarcie statyczne: leżąca cyfra rusza dopiero, gdy grawitacja pokona tarcie
+      if (!(sp < 0.02 && aMag < fric * 1.05)) { d.vx += ax * dt; d.vy += ay * dt; }
+      const sp2 = Math.hypot(d.vx, d.vy), dec = fric * dt;
+      if (sp2 <= dec) { d.vx = 0; d.vy = 0; } else { d.vx *= 1 - dec / sp2; d.vy *= 1 - dec / sp2; }
+      const decW = dec * 14;
+      d.wv = Math.abs(d.wv) <= decW ? 0 : d.wv - Math.sign(d.wv) * decW;
+      d.vx *= 1 - 0.08 * dt; d.vy *= 1 - 0.08 * dt; d.wv *= 1 - 0.3 * dt;
     }
 
-    // --- wskazówki
-    const ta = timeAngles();
-    let settled = true;
-    for (const key in hands) {
-      const H = hands[key];
-      let acc;
-      if (mode === 'ok') {
-        const kk = 140 / H.I, c = 2 * Math.sqrt(kk) * 0.65;
-        acc = kk * wrap(ta[key] - H.th) - c * H.w;
-        acc += (dGx * Math.cos(H.th) + dGy * Math.sin(H.th)) * 3 / H.I;
-      } else if (mode === 'lost') {
-        // wskazówki wiszą jak wahadła i błądzą — godzina nie ma sensu
-        acc = -(16 / H.I) * m * Math.sin(H.th - phi) - 0.5 * H.w;
-        acc += (Math.random() - 0.5) * (2.5 + shake * 60) / H.I;
-      } else {
-        // kompas: sprężyna do prawdziwej godziny, słabo tłumiona
-        const kk = 9 / H.I, c = 2 * Math.sqrt(kk) * 0.16;
-        acc = kk * wrap(ta[key] - H.th) - c * H.w - 2 * m * Math.sin(H.th - phi);
-        if (Math.abs(wrap(ta[key] - H.th)) > 0.03 || Math.abs(H.w) > 0.08) settled = false;
-      }
-      H.w += acc * dt; H.th += H.w * dt;
+    // 5) kontakty i rozwiązanie prędkości
+    const cs = gatherContacts(loose);
+    for (const c of cs) {
+      prestep(c);
+      if (c.B) { impactSound(c.A, 'pair', c.impact); }
+      else impactSound(c.A, 'rim', c.impact);
     }
-    if (mode === 'repair' && settled && digits.every(d => d.state === 'stuck')) mode = 'ok';
+    for (let it = 0; it < CFG.iterations; it++) for (const c of cs) solveContact(c);
 
-    // --- interfejs
-    const peeling = digits.some(d => d.state === 'stuck' && d.peel > 0.12);
-    const s = mode === 'lost' ? 'lost' : mode === 'repair' ? 'repair' : peeling ? 'peel' : 'ok';
-    if (s !== lastUi) {
-      lastUi = s; chip.dataset.s = s;
-      chip.textContent = { ok: 'Cała', peel: 'Odkleja się', lost: 'Rozsypana', repair: 'Wraca na miejsce' }[s];
-    }
-    return { m, phi };
-  }
+    // 6) całkowanie
+    for (const d of loose) { d.x += d.vx * dt; d.y += d.vy * dt; d.ang += d.wv * dt; }
 
-  // ---------- rysowanie ----------
-  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-  const C = {};
-  function readColors() { ['--face', '--face-hi', '--brass', '--coral', '--panel', '--ink', '--muted', '--line', '--bg'].forEach(k => C[k] = css(k)); }
-  readColors();
-  const FONT_D = "'Lilita One','Arial Rounded MT Bold',system-ui,sans-serif";
-  const FONT_M = "'JetBrains Mono',ui-monospace,Menlo,monospace";
+    // 7) korekta przenikania (świeże kontakty po ruchu)
+    for (let it = 0; it < CFG.posIterations; it++) for (const c of gatherContacts(loose)) correctContact(c);
 
-  function stickerText(d, X, Y, rot, lift, skew) {
-    const fs = R * (d.n >= 10 ? 0.205 : 0.225);
-    ctx.save();
-    ctx.translate(X, Y); ctx.rotate(rot);
-    const s = 1 + lift * 0.14; ctx.scale(s, s);
-    if (skew) ctx.transform(1, 0, skew, 1, 0, 0);
-    ctx.font = `${fs}px ${FONT_D}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.lineJoin = 'round';
-    ctx.shadowColor = `rgba(0,0,0,${0.35 + lift * 0.25})`;
-    ctx.shadowBlur = 2 + lift * 12; ctx.shadowOffsetX = 1 + lift * 6; ctx.shadowOffsetY = 2 + lift * 9;
-    ctx.strokeStyle = '#fbf6ec'; ctx.lineWidth = fs * 0.3;
-    ctx.strokeText(String(d.n), 0, fs * 0.04);
-    ctx.shadowColor = 'transparent';
-    ctx.fillStyle = d.color; ctx.fillText(String(d.n), 0, fs * 0.04);
-    ctx.lineWidth = 1.1; ctx.strokeStyle = 'rgba(20,30,28,.35)'; ctx.strokeText(String(d.n), 0, fs * 0.04);
-    ctx.restore();
-  }
-
-  function hand(H, capR, ox, oy) {
-    const col = H.col === 'coral' ? C['--coral'] : C['--brass'];
-    const L = H.len * R, w = H.wid * R;
-    ctx.save(); ctx.translate(cx + ox, cy + oy); ctx.rotate(H.th);
-    ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 6; ctx.shadowOffsetX = 2 + G.x * 4; ctx.shadowOffsetY = 3 + G.y * 4;
-    ctx.beginPath();
-    const b = capR * 0.85;
-    ctx.moveTo(-w / 2, -b); ctx.lineTo(-w * 0.32, -L + w * 0.6);
-    ctx.quadraticCurveTo(0, -L - w * 0.4, w * 0.32, -L + w * 0.6);
-    ctx.lineTo(w / 2, -b); ctx.closePath();
-    ctx.fillStyle = col; ctx.fill();
-    ctx.restore();
-  }
-
-  function draw(info) {
-    const { m } = info;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, W, W);
-    let jx = 0, jy = 0;
-    if (inputMode === 'sim' && shake > 0.05 && !reduceMotion) { jx = (Math.random() - 0.5) * shake * 9; jy = (Math.random() - 0.5) * shake * 9; }
-    ctx.translate(jx, jy);
-    const fox = G.x * R * 0.03, foy = G.y * R * 0.03;
-
-    // koperta
-    const bez = ctx.createLinearGradient(cx - R, cy - R, cx + R, cy + R);
-    bez.addColorStop(0, '#3a4d50'); bez.addColorStop(0.5, '#1b2a2d'); bez.addColorStop(1, '#2d3f42');
-    ctx.beginPath(); ctx.arc(cx, cy, R * 1.08, 0, TAU); ctx.fillStyle = bez; ctx.fill();
-    ctx.beginPath(); ctx.arc(cx, cy, R * 1.0, 0, TAU); ctx.fillStyle = '#071012'; ctx.fill();
-
-    // tarcza
-    ctx.save();
-    ctx.beginPath(); ctx.arc(cx, cy, R * 0.985, 0, TAU); ctx.clip();
-    const fg = ctx.createRadialGradient(cx - R * 0.3 - fox * 3, cy - R * 0.35 - foy * 3, R * 0.05, cx, cy, R * 1.05);
-    fg.addColorStop(0, C['--face-hi']); fg.addColorStop(1, C['--face']);
-    ctx.fillStyle = fg; ctx.fillRect(cx - R, cy - R, 2 * R, 2 * R);
-
-    // podziałka minutowa
-    ctx.save(); ctx.translate(cx + fox, cy + foy);
-    for (let i = 0; i < 60; i++) {
-      const a = i / 60 * TAU, big = i % 5 === 0;
-      const r1 = R * 0.95, r0 = R * (big ? 0.875 : 0.915);
-      ctx.beginPath(); ctx.moveTo(Math.sin(a) * r0, -Math.cos(a) * r0); ctx.lineTo(Math.sin(a) * r1, -Math.cos(a) * r1);
-      ctx.strokeStyle = big ? 'rgba(232,240,233,.55)' : 'rgba(232,240,233,.22)';
-      ctx.lineWidth = big ? R * 0.016 : R * 0.007; ctx.lineCap = 'round'; ctx.stroke();
-    }
-    ctx.restore();
-
-    // ślady kleju po odklejonych naklejkach
-    const sox = G.x * R * 0.05, soy = G.y * R * 0.05;
+    // 8) powrót na miejsce (lot nad tarczą, bez kolizji)
     for (const d of digits) {
-      const vis = d.state === 'stuck' ? Math.min(1, d.peel * 1.4) : 1;
-      if (vis < 0.02) continue;
-      const fs = R * (d.n >= 10 ? 0.205 : 0.225);
-      ctx.save(); ctx.translate(cx + d.hx * R + fox, cy + d.hy * R + foy);
-      ctx.font = `${fs}px ${FONT_D}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
-      ctx.globalAlpha = 0.16 * vis; ctx.strokeStyle = '#e8f0e9'; ctx.lineWidth = fs * 0.3;
-      ctx.strokeText(String(d.n), 0, fs * 0.04);
-      ctx.globalAlpha = 0.22 * vis; ctx.lineWidth = 1; ctx.setLineDash([2, 3]); ctx.strokeText(String(d.n), 0, fs * 0.04);
+      if (d.state !== 'returning') continue;
+      if (d.delay > 0) { d.delay -= dt; continue; }
+      const k = 9, c = 2 * Math.sqrt(k) * 0.9;
+      d.vx += (-k * (d.x - d.hx) - c * d.vx) * dt; d.vy += (-k * (d.y - d.hy) - c * d.vy) * dt;
+      d.wv += (-k * 1.4 * wrap(d.ang) - c * d.wv) * dt;
+      d.x += d.vx * dt; d.y += d.vy * dt; d.ang += d.wv * dt;
+      if (Math.hypot(d.x - d.hx, d.y - d.hy) < 0.004 && Math.hypot(d.vx, d.vy) < 0.04 && Math.abs(wrap(d.ang)) < 0.02) {
+        d.state = 'stuck'; d.x = d.hx; d.y = d.hy; d.ang = 0; d.vx = d.vy = d.wv = 0; d.peel = 0; d.settle = 1;
+        play('stick', 0.5);
+      }
+    }
+
+    // 9) wskazówki
+    stepHands(dt);
+    if (mode === 'repair' && digits.every(d => d.state === 'stuck')) {
+      const ta = timeAngles();
+      if (['h', 'm'].every(k => Math.abs(wrap(ta[k] - hands[k].th)) < 0.03 && Math.abs(hands[k].w) < 0.05)) mode = 'ok';
+    }
+  }
+
+  /* ============================ RYSOWANIE ============================ */
+  const cvs = document.getElementById('dial'), ctx = cvs.getContext('2d'), stage = document.getElementById('stage');
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let W = 300, R = 130, cx = 150, cy = 150, dpr = 1;
+  function resize() {
+    const w = stage.getBoundingClientRect().width;
+    dpr = Math.min(window.devicePixelRatio || 1, 3);
+    cvs.width = Math.round(w * dpr); cvs.height = Math.round(w * dpr);
+    W = w; cx = cy = w / 2; R = w * 0.46;
+  }
+  new ResizeObserver(resize).observe(stage); resize();
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const C = {}; ['--ink', '--muted', '--needle', '--ok'].forEach(k => C[k] = css(k));
+
+  function glyph(d, X, Y, ang, lift, color) {
+    ctx.save();
+    ctx.translate(X, Y); ctx.rotate(ang);
+    ctx.font = `${d.weight} ${d.size * R}px ${FONT_D}`; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    const gx = d.ox * R, gy = d.oy * R;
+    if (lift > 0.02) {
+      ctx.fillStyle = '#1d1d1c';
+      ctx.fillText(String(d.n), gx + lift * R * 0.022, gy + lift * R * 0.03);
+      const s = 1 + lift * 0.06; ctx.scale(s, s);
+    }
+    ctx.fillStyle = color;
+    ctx.fillText(String(d.n), gx, gy);
+    ctx.restore();
+  }
+
+  function needle(key) {
+    const P = CFG.hands[key], H = hands[key];
+    const L = P.len * R, T = P.tail * R, w = P.wid * R / 2, mid = L * 0.12;
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(H.th);
+    ctx.beginPath(); ctx.moveTo(0, -L); ctx.lineTo(w, -mid); ctx.lineTo(0, 0); ctx.lineTo(-w, -mid); ctx.closePath();
+    ctx.fillStyle = P.front === 'needle' ? C['--needle'] : C['--ink']; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(0, T); ctx.lineTo(w * 0.8, -mid * 0.2); ctx.lineTo(0, 0); ctx.lineTo(-w * 0.8, -mid * 0.2); ctx.closePath();
+    ctx.fillStyle = '#4a4946'; ctx.fill();
+    ctx.restore();
+  }
+
+  function draw() {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, W);
+    if (inputMode === 'sim' && shake > 0.05 && !reduceMotion) ctx.translate((Math.random() - 0.5) * shake * 6, (Math.random() - 0.5) * shake * 6);
+
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, TAU); ctx.strokeStyle = '#2b2a28'; ctx.lineWidth = 1.5; ctx.stroke();
+
+    ctx.save(); ctx.translate(cx, cy); ctx.lineCap = 'round';
+    for (let i = 1; i < 60; i++) {
+      const a = i / 60 * TAU, big = i % 5 === 0, r1 = R * 0.95, r0 = R * (big ? 0.89 : 0.925);
+      ctx.beginPath(); ctx.moveTo(Math.sin(a) * r0, -Math.cos(a) * r0); ctx.lineTo(Math.sin(a) * r1, -Math.cos(a) * r1);
+      ctx.strokeStyle = big ? '#6b6a65' : '#2e2d2b'; ctx.lineWidth = big ? R * 0.012 : R * 0.006; ctx.stroke();
+    }
+    ctx.beginPath(); ctx.moveTo(0, -R * 0.885); ctx.lineTo(R * 0.03, -R * 0.955); ctx.lineTo(-R * 0.03, -R * 0.955); ctx.closePath();
+    ctx.fillStyle = C['--needle']; ctx.fill();
+    ctx.restore();
+
+    // ślad po cyfrze, która się odkleiła
+    for (const d of digits) {
+      const vis = d.state === 'stuck' ? Math.min(1, d.peel * 1.2) : 1;
+      if (vis < 0.03) continue;
+      ctx.save(); ctx.translate(cx + d.hx * R, cy + d.hy * R);
+      ctx.font = `${d.weight} ${d.size * R}px ${FONT_D}`; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+      ctx.globalAlpha = 0.6 * vis; ctx.strokeStyle = '#3a3936'; ctx.lineWidth = 1; ctx.setLineDash([2, 3]);
+      ctx.strokeText(String(d.n), d.ox * R, d.oy * R);
       ctx.restore();
     }
 
-    // przyklejone / odklejające się
+    // przyklejone: stoją w miejscu; odklejone przy pionie lekko się unoszą i drżą
     for (const d of digits) {
       if (d.state !== 'stuck') continue;
       const p = d.peel;
-      const cross = Math.sin(d.a) * G.y - (-Math.cos(d.a)) * G.x;
-      const X = cx + (d.hx + G.x * p * 0.07) * R + sox, Y = cy + (d.hy + G.y * p * 0.07) * R + soy;
-      stickerText(d, X, Y, d.sw + p * 0.55 * cross, p, p * 0.22 * Math.sign(cross || 1));
+      const tremor = p > 0.05 ? Math.sin(simTime * 31 + d.phase) * 0.012 * p * (0.4 + Math.min(1.5, tiltSpeed)) : 0;
+      const lift = Math.max(p * 0.8, d.settle * 0.4);
+      glyph(d, cx + d.hx * R, cy + d.hy * R, p * 0.08 * d.sgn + tremor, lift, lift > 0.05 ? '#ffffff' : C['--ink']);
     }
-    // luźne (pod szkłem, pod wskazówkami)
     for (const d of digits) {
       if (d.state === 'stuck') continue;
-      stickerText(d, cx + d.x * R + fox, cy + d.y * R + foy, d.rot, d.state === 'returning' ? 0.6 : 0.35, 0);
+      glyph(d, cx + d.x * R, cy + d.y * R, d.ang, d.state === 'returning' ? 0.6 : 0.25, '#ffffff');
     }
 
-    // wskazówki
-    const capR = R * 0.2;
-    hand(hands.h, capR, fox, foy); hand(hands.m, capR, fox, foy); hand(hands.s, capR, fox, foy);
+    needle('h'); needle('m');
 
     // środek: bateria
-    ctx.save(); ctx.translate(cx + fox, cy + foy);
-    ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 3;
-    ctx.beginPath(); ctx.arc(0, 0, capR, 0, TAU); ctx.fillStyle = C['--bg']; ctx.fill();
-    ctx.shadowColor = 'transparent';
-    ctx.lineWidth = R * 0.014; ctx.strokeStyle = C['--brass']; ctx.stroke();
-    // łuk poziomu baterii
+    const capR = R * 0.17;
+    ctx.save(); ctx.translate(cx, cy);
+    ctx.beginPath(); ctx.arc(0, 0, capR, 0, TAU); ctx.fillStyle = '#000'; ctx.fill();
+    ctx.lineWidth = 1.5; ctx.strokeStyle = '#3a3936'; ctx.stroke();
     if (battery) {
-      ctx.beginPath(); ctx.arc(0, 0, capR * 0.82, -Math.PI / 2, -Math.PI / 2 + TAU * battery.level);
-      ctx.strokeStyle = battery.level < 0.2 ? C['--coral'] : 'rgba(142,227,180,.85)'; ctx.lineWidth = R * 0.016; ctx.lineCap = 'round'; ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, capR, -Math.PI / 2, -Math.PI / 2 + TAU * battery.level);
+      ctx.strokeStyle = battery.level < 0.2 ? C['--needle'] : C['--ok']; ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.stroke();
     }
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = battery && battery.charging ? C['--brass'] : C['--ink'];
-    const pct = battery ? Math.round(battery.level * 100) + '%' : '--%';
-    ctx.font = `700 ${R * (pct.length > 3 ? 0.092 : 0.11)}px ${FONT_M}`;
-    ctx.fillText(pct, 0, -R * 0.012);
-    ctx.font = `500 ${R * 0.042}px ${FONT_M}`; ctx.fillStyle = C['--muted'];
-    ctx.fillText(battery ? (battery.charging ? 'ŁADUJE' : 'BATERIA') : 'BRAK DANYCH', 0, R * 0.075);
-    ctx.restore();
-
-    // blik szkła
-    const gl = ctx.createLinearGradient(cx - R - G.x * R * 0.6, cy - R - G.y * R * 0.6, cx + R * 0.3, cy + R * 0.3);
-    gl.addColorStop(0, 'rgba(255,255,255,.10)'); gl.addColorStop(0.45, 'rgba(255,255,255,0)');
-    ctx.fillStyle = gl; ctx.fillRect(cx - R, cy - R, 2 * R, 2 * R);
+    ctx.fillStyle = C['--ink']; ctx.font = `500 ${R * 0.12}px ${FONT_D}`;
+    ctx.fillText(battery ? String(Math.round(battery.level * 100)) : '--', 0, -R * 0.015);
+    ctx.font = `400 ${R * 0.038}px ${FONT_M}`; ctx.fillStyle = battery && battery.charging ? C['--ok'] : C['--muted'];
+    ctx.fillText(battery ? (battery.charging ? '% ŁAD.' : '%') : 'BRAK', 0, R * 0.075);
     ctx.restore();
   }
 
-  // ---------- pętla ----------
-  let last = performance.now(), uiT = 0;
+  /* ============================== PĘTLA ============================== */
+  const chip = document.getElementById('chip'), readout = document.getElementById('readout'), note = document.getElementById('note');
+  let last = performance.now(), acc = 0, uiT = 0, lastUi = '';
   function frame(now) {
-    let dt = Math.min(0.033, (now - last) / 1000); last = now;
-    const steps = 2; let info;
-    for (let i = 0; i < steps; i++) info = update(dt / steps, now);
-    draw(info);
-    uiT += dt;
+    const el = Math.min(0.1, (now - last) / 1000); last = now; acc += el;
+    let n = 0; while (acc >= CFG.dt && n < 14) { step(CFG.dt); acc -= CFG.dt; n++; }
+    if (n === 14) acc = 0;
+    draw();
+    uiT += el;
     if (uiT > 0.12) {
       uiT = 0;
-      const deg = Math.round(Math.asin(Math.min(1, info.m)) * 180 / Math.PI);
+      const deg = Math.round(Math.asin(Math.min(1, Math.hypot(Gs.x, Gs.y))) * 180 / Math.PI);
       readout.textContent = `przechył ${String(deg).padStart(2, ' ')}° · wstrząs ${shake.toFixed(2)} · ${inputMode === 'sim' ? 'symulacja' : 'czujniki'}`;
+      const peeling = digits.some(d => d.state === 'stuck' && d.peel > 0.12);
+      const s = mode === 'lost' ? 'lost' : mode === 'repair' ? 'repair' : peeling ? 'peel' : 'ok';
+      if (s !== lastUi) { lastUi = s; chip.dataset.s = s; chip.textContent = { ok: 'Cała', peel: 'Odkleja się', lost: 'Rozsypana', repair: 'Wraca na miejsce' }[s]; }
     }
     requestAnimationFrame(frame);
   }
-  (document.fonts && document.fonts.load ? Promise.all([document.fonts.load(`40px 'Lilita One'`), document.fonts.load(`700 20px 'JetBrains Mono'`)]).catch(() => {}) : Promise.resolve())
-    .then(() => requestAnimationFrame(frame));
+  const fontsReady = document.fonts && document.fonts.load
+    ? Promise.all([document.fonts.load(`300 40px 'Saira Semi Condensed'`), document.fonts.load(`500 40px 'Saira Semi Condensed'`), document.fonts.load(`400 20px 'JetBrains Mono'`)]).catch(() => {})
+    : Promise.resolve();
+  fontsReady.then(() => { buildDigits(); last = performance.now(); requestAnimationFrame(frame); });
 
-  // ---------- symulacja: pad ----------
+  /* ======================= STEROWANIE: SYMULACJA ======================= */
   const pad = document.getElementById('pad'), knob = document.getElementById('knob');
   function setPad(x, y) {
     const l = Math.hypot(x, y); if (l > 1) { x /= l; y /= l; }
-    Graw.x = x; Graw.y = y;
+    padG.x = x; padG.y = y;
     knob.style.transform = `translate(${x * 51}px, ${y * 51}px)`;
     const deg = Math.round(Math.asin(Math.min(1, Math.hypot(x, y))) * 180 / Math.PI);
     pad.setAttribute('aria-valuetext', deg < 3 ? 'poziomo' : `przechył ${deg} stopni`);
   }
   function padPoint(e) {
     const r = pad.getBoundingClientRect();
-    setPad((e.clientX - r.left - r.width / 2) / (r.width / 2 - 15), (e.clientY - r.top - r.height / 2) / (r.height / 2 - 15));
+    setPad((e.clientX - r.left - r.width / 2) / (r.width / 2 - 13), (e.clientY - r.top - r.height / 2) / (r.height / 2 - 13));
   }
   pad.addEventListener('pointerdown', e => { pad.setPointerCapture(e.pointerId); padPoint(e); });
   pad.addEventListener('pointermove', e => { if (pad.hasPointerCapture(e.pointerId)) padPoint(e); });
   pad.addEventListener('keydown', e => {
     const st = 0.1, map = { ArrowLeft: [-st, 0], ArrowRight: [st, 0], ArrowUp: [0, -st], ArrowDown: [0, st] };
-    if (map[e.key]) { e.preventDefault(); setPad(Graw.x + map[e.key][0], Graw.y + map[e.key][1]); }
+    if (map[e.key]) { e.preventDefault(); setPad(padG.x + map[e.key][0], padG.y + map[e.key][1]); }
     if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); doShake(); }
   });
-  function doShake() { ensureAudio(); shake = Math.max(shake, 1.25); }
+  function doShake() { ensureAudio(); simShake.t = 0; simShake.dur = 0.9; simShake.amp = 1.5; simShake.dir = Math.random() * TAU; }
   document.getElementById('shakeBtn').addEventListener('click', doShake);
   let levelAnim = 0;
   document.getElementById('levelBtn').addEventListener('click', () => {
     cancelAnimationFrame(levelAnim);
-    const sx = Graw.x, sy = Graw.y, t0 = performance.now();
-    const step = t => { const k = Math.min(1, (t - t0) / 350), e = 1 - Math.pow(1 - k, 3); setPad(sx * (1 - e), sy * (1 - e)); if (k < 1) levelAnim = requestAnimationFrame(step); };
-    levelAnim = requestAnimationFrame(step);
+    const sx = padG.x, sy = padG.y, t0 = performance.now();
+    const go = t => { const k = Math.min(1, (t - t0) / 350), e = 1 - Math.pow(1 - k, 3); setPad(sx * (1 - e), sy * (1 - e)); if (k < 1) levelAnim = requestAnimationFrame(go); };
+    levelAnim = requestAnimationFrame(go);
   });
 
-  // ---------- prawdziwe czujniki ----------
+  /* ===================== STEROWANIE: CZUJNIKI TELEFONU ===================== */
   const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   function onMotion(e) {
     const a = e.accelerationIncludingGravity;
@@ -484,33 +673,35 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--brass);outline-o
       inputMode = 'sensor';
       document.getElementById('simControls').hidden = true;
       note.hidden = false; note.textContent = 'Czujniki telefonu aktywne — przechylaj i potrząsaj telefonem.';
-      document.getElementById('hint').innerHTML = '<b>Przechyl mocno</b> — część cyfr zacznie się odklejać. <b>Potrząśnij w przechyleniu</b> — odpadną. <b>Połóż płasko i potrząśnij</b> — wrócą na miejsce.';
+      document.getElementById('hint').innerHTML = '<b>Lekki przechył</b> ugina wskazówki, <b>mocny</b> je rozbuja. <b>Prawie pion</b> odkleja cyfry. <b>Potrząśnij w przechyleniu</b> — spadną. <b>Połóż płasko i potrząśnij</b> — wrócą.';
     }
+    // przyspieszenie z grawitacją = efektywna „grawitacja” w układzie telefonu (z ruchami ręki)
     let gx = -a.x / 9.81, gy = a.y / 9.81;
     if (isIOS) { gx = -gx; gy = -gy; }
     const ang = ((screen.orientation && screen.orientation.angle) || window.orientation || 0) * Math.PI / 180;
-    const rx = gx * Math.cos(ang) + gy * Math.sin(ang), ry = -gx * Math.sin(ang) + gy * Math.cos(ang);
-    const l = Math.hypot(rx, ry);
-    Graw.x = l > 1 ? rx / l : rx; Graw.y = l > 1 ? ry / l : ry;
+    sensor.x = gx * Math.cos(ang) + gy * Math.sin(ang);
+    sensor.y = -gx * Math.sin(ang) + gy * Math.cos(ang);
     const lin = e.acceleration;
-    let mag;
-    if (lin && lin.x != null) mag = Math.hypot(lin.x, lin.y, lin.z);
-    else mag = Math.abs(Math.hypot(a.x, a.y, a.z || 0) - 9.81);
-    if (mag > 11) shake = Math.min(1.6, shake + (mag - 11) * 0.06);
+    const mag = lin && lin.x != null ? Math.hypot(lin.x, lin.y, lin.z) : Math.abs(Math.hypot(a.x, a.y, a.z || 0) - 9.81);
+    sensor.shakePeak = Math.max(sensor.shakePeak, clamp((mag - 7) / 8, 0, 1.6));
+    const rr = e.rotationRate;
+    if (rr && rr.alpha != null) {
+      const now = performance.now() / 1000, om = rr.alpha * Math.PI / 180;
+      const dt = sensor.lastT ? Math.max(0.008, now - sensor.lastT) : 0.016;
+      sensor.rotAcc = clamp((om - sensor.omega) / dt, -150, 150);
+      sensor.omega = om; sensor.lastT = now;
+    }
   }
   addEventListener('devicemotion', onMotion);
   document.getElementById('sensorBtn').addEventListener('click', async () => {
     ensureAudio();
     try {
-      if (window.DeviceMotionEvent && typeof DeviceMotionEvent.requestPermission === 'function') {
-        const r = await DeviceMotionEvent.requestPermission();
-        if (r !== 'granted') throw new Error('denied');
-      }
-    } catch (e) { /* obsłużone niżej */ }
+      if (window.DeviceMotionEvent && typeof DeviceMotionEvent.requestPermission === 'function') await DeviceMotionEvent.requestPermission();
+    } catch (e) {}
     setTimeout(() => {
       if (inputMode !== 'sensor') {
         note.hidden = false;
-        note.textContent = 'Ten podgląd nie dostaje danych z czujników ruchu. Otwórz ten sam plik w przeglądarce telefonu pod adresem https (np. GitHub Pages) — tam przechył i potrząśnięcie działają naprawdę. Tutaj steruj kulką i przyciskiem.';
+        note.textContent = 'Ten podgląd nie dostaje danych z czujników ruchu. Otwórz plik w przeglądarce pod adresem https (np. raw.githack.com) — tam przechył i potrząśnięcie działają naprawdę. Tutaj steruj kółkiem i przyciskiem.';
       }
     }, 1200);
   });
