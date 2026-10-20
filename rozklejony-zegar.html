@@ -71,7 +71,7 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
   </section>
   <p class="note" id="note" hidden></p>
 
-  <p class="hint" id="hint">Przeciągnij kółko, żeby przechylić tarczę. <b>Lekki przechył</b> ugina wskazówki. <b>Mocny (pow. ~45°)</b> zrywa je ze sprzęgła i rozbuja. <b>Prawie pion</b> zaczyna odklejać cyfry, ale trzymają się na miejscu. <b>Potrząśnij w przechyleniu</b>, a zaczną spadać. <b>Połóż płasko i potrząśnij</b>, a wrócą, a wskazówki odnajdą godzinę jak igła kompasu.</p>
+  <p class="hint" id="hint">Przeciągnij kółko, żeby przechylić tarczę. <b>Do 15°</b> wskazówki tylko drgają. <b>Od ok. 40°</b> sprzęgło puszcza i lecą w dół. <b>Prawie pion</b> unosi brzegi cyfr, ale zostają na miejscu. <b>Potrząśnij w przechyleniu</b>: cyfry zawisną na rogu, a potem spadną. <b>Połóż płasko i potrząśnij</b>, a wrócą, a wskazówki odnajdą godzinę.</p>
 </main>
 
 <script>
@@ -85,39 +85,50 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
      G = wektor grawitacji w płaszczyźnie ekranu w „g” (|G| = sin przechyłu).
      ===================================================================== */
   const CFG = {
-    dt: 1 / 120,            // stały krok fizyki
-    gAcc: 6.0,              // 1 g w jednostkach tarczy na s²
+    dt: 1 / 240,            // stały krok fizyki (wskazówki, odklejanie)
+    sub: 2,                 // podkroki brył cyfr → kolizje liczone 480 razy/s, bez przelatywania
+    // 1 g w promieniach tarczy na s². Fizycznie dla tarczy 2,3 cm byłoby to ~420 (nieczytelnie szybko);
+    // 40 odpowiada zegarowi ok. 25 cm — ruch ma realne przyspieszenie, a oko nadąża.
+    gAcc: 40,
+    vMax: 9,                // prędkość graniczna (opór powietrza) — chroni też przed tunelowaniem
     rimR: 0.965,            // wewnętrzna krawędź, o którą stukają cyfry
     homeR: 0.74,            // promień, na którym przyklejone są cyfry
 
-    // Wskazówka = wahadło na osi + sprężynowe sprzęgło mechanizmu.
-    // kappa: moment grawitacji przy |G|=1, k: sztywność sprzęgła,
-    // tauMax: maksymalny moment sprzęgła (powyżej wskazówka się „zrywa”),
-    // cFree: tłumienie przy przechyle (długie bujanie), cLevel: przy poziomie (igła kompasu uspokaja się w kilku wahnięciach),
-    // mu: tarcie suche na osi.
+    // Wskazówka = ciężkie wahadło na osi + cierne sprzęgło mechanizmu, które może się ślizgać.
+    // Stany: locked (trzyma godzinę), free (sprzęgło puściło, wisi i buja się), seek (łapie i szuka godziny jak kompas).
+    // kappa: moment grawitacji przy |G|=1; kLock: sztywność sprzęgła (× kappa); zLock/zSeek/zFree: współczynnik tłumienia ζ;
+    // kSeek: sztywność szukania (× I), seekMax: maks. moment szukania (× kappa); mu: tarcie suche osi.
     hands: {
-      h: { I: 1.8, kappa: 52, k: 58, tauMax: 37, cFree: 0.45, cLevel: 2.4, mu: 0.22, len: 0.50, wid: 0.075, tail: 0.30, front: 'ink' },
-      m: { I: 1.0, kappa: 40, k: 42, tauMax: 29, cFree: 0.28, cLevel: 1.5, mu: 0.15, len: 0.74, wid: 0.06, tail: 0.34, front: 'needle' }
+      h: { I: 1.8, kappa: 52, kLock: 14, zLock: 0.32, kSeek: 11, zSeek: 0.55, seekMax: 0.38, zFree: 0.26, mu: 0.35, len: 0.50, wid: 0.075, tail: 0.30, front: 'ink' },
+      m: { I: 1.0, kappa: 40, kLock: 14, zLock: 0.30, kSeek: 14, zSeek: 0.50, seekMax: 0.38, zFree: 0.22, mu: 0.2, len: 0.74, wid: 0.06, tail: 0.34, front: 'needle' }
     },
+    handSoftFrom: 0.26,     // sin 15°: do tego przechyłu sprzęgło jest pełne — wskazówki tylko drgają przy szarpnięciu
+    handRelease: 0.68,      // sin 43°: powyżej sprzęgło zawsze puszcza i wskazówki lecą w dół
+    handBreak: 0.5,         // sprzęgło puszcza też wcześniej, gdy moment grawitacji > 0,5·kappa (wskazówka w poprzek spadku)
+    handGrab: 0.30,         // sin 17°: poniżej sprzęgło łapie z powrotem
 
-    // Odklejanie: zaczyna się dopiero blisko pionu i nie przesuwa cyfr.
-    peelStart: 0.92,        // |G| ≈ sin(67°)
-    peelRate: 0.30,         // jak szybko rośnie odklejenie przy pełnym pionie
-    peelRelax: 0.12,        // jak szybko wraca, gdy przechył zmaleje
-    detachMinTilt: 0.34,    // wstrząs zrywa cyfry dopiero od ~20° przechyłu
-    detachRate: 1.4,        // tempo zrywania nieodklejonych cyfr podczas wstrząsu
-    shakeOn: 0.5,           // próg „zdarzenia potrząśnięcia”
+    // Naklejki
+    peelStart: 0.92,        // sin 67°: od tego przechyłu brzegi zaczynają się unosić
+    peelHold: 0.5,          // bez potrząsania odklejenie zatrzymuje się na tej wartości — cyfra zostaje na miejscu
+    peelRate: 0.30,
+    peelRelax: 0.12,
+    detachMinTilt: 0.34,    // potrząsanie odrywa dopiero od ~20° przechyłu
+    shakePeel: 1.6,         // jak szybko potrząsanie odkleja
+    hangAt: 0.62,           // przy tym odklejeniu cyfra puszcza z jednej strony i wisi na rogu
+    shakeOn: 0.5,
 
-    // Bryły cyfr (kapsuły dopasowane do kształtu znaku).
-    restitution: 0.30,      // odbicie cyfra–cyfra
-    rimRestitution: 0.36,   // odbicie od brzegu
-    friction: 0.38,         // tarcie cyfra–cyfra i cyfra–brzeg
-    faceFriction: 0.45,     // tarcie o tarczę (μ); cyfry ruszają przy tan(kąta) > μ, ok. 24°
+    // Bryły cyfr (kapsuły dopasowane do kształtu znaku)
+    muStatic: 0.50,         // tarcie statyczne o tarczę: leżąca cyfra rusza dopiero przy tan θ > 0,5 (~27°)
+    muKinetic: 0.30,        // tarcie kinetyczne: po ruszeniu przyspiesza z a = g(sin θ − 0,3 cos θ)
+    restitution: 0.25,      // odbicie cyfra–cyfra
+    rimRestitution: 0.30,   // odbicie od brzegu
+    friction: 0.40,         // tarcie cyfra–cyfra i cyfra–brzeg
+    bounceMin: 0.25,        // poniżej tej prędkości zderzenia nie ma odbicia (spoczynek bez drgań)
     iterations: 10,
     posIterations: 3,
     slop: 0.0015,
-    baumgarte: 0.6,
-    soundMin: 0.16          // minimalna prędkość zderzenia, która daje dźwięk
+    baumgarte: 0.5,
+    soundMin: 0.35          // minimalna prędkość zderzenia, która daje dźwięk
   };
 
   /* ---------------------------- matematyka ---------------------------- */
@@ -161,7 +172,7 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
   let flatTime = 0, simTime = 0;
 
   const digits = [];
-  const hands = { h: { th: 0, w: 0 }, m: { th: 0, w: 0 } };
+  const hands = { h: { th: 0, w: 0, st: 'locked' }, m: { th: 0, w: 0, st: 'locked' } };
   function timeAngles() {
     const t = new Date();
     const m = t.getMinutes() + t.getSeconds() / 60 + t.getMilliseconds() / 60000, h = (t.getHours() % 12) + m / 60;
@@ -278,7 +289,7 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
     c.kT = A.im + imB + A.ii * rtA * rtA + iiB * rtB * rtB;
     const vn = relVel(c, c.nx, c.ny);
     const e = B ? CFG.restitution : CFG.rimRestitution;
-    c.bounce = vn < -0.12 ? -e * vn : 0;
+    c.bounce = vn < -CFG.bounceMin ? -e * vn : 0;
     c.impact = -vn;
   }
   function solveContact(c) {
@@ -353,7 +364,7 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
   function impactSound(body, kind, speed) {
     if (speed < CFG.soundMin || simTime - body.lastSnd < 0.045) return;
     body.lastSnd = simTime;
-    play(kind, clamp((speed - CFG.soundMin) / 1.6, 0.06, 1));
+    play(kind, clamp((speed - CFG.soundMin) / 4, 0.06, 1));
   }
 
   /* ----------------------------- bateria ----------------------------- */
@@ -396,30 +407,108 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
     tiltSpeed += (Math.hypot(Gf.x - px, Gf.y - py) / dt - tiltSpeed) * (1 - Math.exp(-dt * 8));
   }
 
+  const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+
   function stepHands(dt) {
-    const g = Math.hypot(Gf.x, Gf.y), phi = Math.atan2(Gf.x, -Gf.y);
-    const engaged = mode !== 'lost';
+    const g = Math.min(3, Math.hypot(Gf.x, Gf.y)), phi = Math.atan2(Gf.x, -Gf.y);
+    const gs = Math.hypot(Gs.x, Gs.y), phis = Math.atan2(Gs.x, -Gs.y);
     const ta = timeAngles();
     for (const key of ['h', 'm']) {
       const P = CFG.hands[key], H = hands[key];
-      let tau = P.kappa * g * Math.sin(phi - H.th);                    // grawitacja ciągnie ciężki grot w dół
-      if (engaged) tau += P.tauMax * Math.tanh(P.k * wrap(ta[key] - H.th) / P.tauMax); // sprzęgło z ograniczonym momentem
-      tau += P.I * rotAcc;                                              // obrót telefonu w płaszczyźnie ekranu
-      const lvl = 1 - Math.min(1, Math.hypot(Gs.x, Gs.y) / 0.5);
-      tau -= (P.cFree + (P.cLevel - P.cFree) * lvl * lvl) * H.w;        // tłumienie lepkie
-      if (Math.abs(H.w) < 0.02 && Math.abs(tau) <= P.mu) { H.w = 0; continue; } // tarcie statyczne trzyma
-      tau -= P.mu * Math.sign(H.w || tau);                              // tarcie suche
+      const err = wrap(ta[key] - H.th);
+
+      // przejścia stanów sprzęgła (z histerezą)
+      if (mode === 'lost') H.st = 'free';
+      else if (H.st === 'locked') {
+        const hold = gs * Math.abs(Math.sin(phis - H.th));
+        if (gs > CFG.handRelease || hold > CFG.handBreak) H.st = 'free';
+      } else if (H.st === 'free') {
+        if (gs < CFG.handGrab) H.st = 'seek';
+      } else if (H.st === 'seek') {
+        if (gs > CFG.handGrab + 0.1) H.st = 'free';
+        else if (Math.abs(err) < 0.025 && Math.abs(H.w) < 0.08) H.st = 'locked';
+      }
+
+      let tau = P.kappa * g * Math.sin(phi - H.th) + P.I * rotAcc;     // grawitacja (z ruchem ręki) + obrót telefonu
+      let c;
+      if (H.st === 'locked') {
+        // sprzęgło mięknie między 15° a 43°: wskazówka coraz wyraźniej się wychyla, aż puści
+        const k = P.kLock * P.kappa * (1 - 0.85 * smooth(CFG.handSoftFrom, CFG.handRelease, gs));
+        tau += k * err; c = 2 * P.zLock * Math.sqrt(k * P.I);
+      } else if (H.st === 'seek') {
+        const k = P.kSeek * P.I, lim = P.seekMax * P.kappa;
+        tau += clamp(k * err, -lim, lim); c = 2 * P.zSeek * Math.sqrt(k * P.I);
+      } else {
+        // wolne wahadło: ζ ≈ 0,22–0,26 → kilka wahnięć i wyraźne hamowanie w ~2 s
+        c = 2 * P.zFree * P.I * Math.sqrt(P.kappa * Math.max(g, 0.2) / P.I);
+      }
+      tau -= c * H.w;
+      if (Math.abs(H.w) < 0.03 && Math.abs(tau) <= P.mu) { H.w = 0; continue; }   // tarcie statyczne osi
+      tau -= P.mu * Math.sign(H.w || tau);
       H.w += tau / P.I * dt;
       H.th += H.w * dt;
     }
   }
 
-  function detach(d) {
-    d.state = 'fallen';
-    d.x = d.hx; d.y = d.hy; d.ang = d.peel * 0.08 * d.sgn;
-    d.vx = 0; d.vy = 0; d.wv = (Math.random() - 0.5) * 3;
-    d.peel = 0;
-    play('tear', 0.35 + Math.random() * 0.3);
+  /* --- cyfra wisząca na jednym rogu: wahadło fizyczne wokół punktu, który jeszcze trzyma --- */
+  function startHang(d) {
+    const gl = Math.hypot(Gs.x, Gs.y) || 1, ux = -Gs.x / gl, uy = -Gs.y / gl;   // kierunek „pod górę”
+    const ca = Math.cos(d.ang), sa = Math.sin(d.ang);
+    const lx = ux * ca + uy * sa, ly = -ux * sa + uy * ca;                     // w układzie cyfry
+    const qx = Math.abs(lx) > 0.3 ? Math.sign(lx) * d.w * 0.42 : 0;
+    const qy = Math.abs(ly) > 0.3 ? Math.sign(ly) * d.h * 0.42 : 0;
+    d.qx = qx; d.qy = qy || (qx ? 0 : d.h * 0.42);
+    d.x = d.hx; d.y = d.hy;
+    d.pvx = d.x + d.qx * ca - d.qy * sa; d.pvy = d.y + d.qx * sa + d.qy * ca;
+    d.ang0 = d.ang; d.wv = 0; d.hold = 1; d.state = 'hanging';
+    play('tear', 0.22 + Math.random() * 0.15);
+  }
+
+  function stepHanging(d, dt, shakeNow) {
+    const ca = Math.cos(d.ang), sa = Math.sin(d.ang);
+    const rx = -(d.qx * ca - d.qy * sa), ry = -(d.qx * sa + d.qy * ca);        // od zawiasu do środka
+    const ax = Gf.x * CFG.gAcc, ay = Gf.y * CFG.gAcc;
+    const q2 = d.qx * d.qx + d.qy * d.qy, Ip = (d.w * d.w + d.h * d.h) / 12 + q2;
+    const tauG = rx * ay - ry * ax;
+    const kS = 3 * CFG.gAcc * Math.sqrt(q2) * d.hold;                            // klej, który jeszcze trzyma
+    const tauS = -kS * wrap(d.ang - d.ang0);
+    d.wv += (tauG + tauS) / Ip * dt;
+    d.wv *= Math.exp(-dt * 2.5);
+    d.ang += d.wv * dt;
+    const c2 = Math.cos(d.ang), s2 = Math.sin(d.ang);
+    d.x = d.pvx - (d.qx * c2 - d.qy * s2); d.y = d.pvy - (d.qx * s2 + d.qy * c2);
+    // klej puszcza: szybciej przy potrząsaniu i przy mocnym bujaniu
+    d.hold -= dt * (0.25 + 2.4 * shakeNow * (0.4 + d.weak) + 0.6 * Math.min(4, Math.abs(d.wv)));
+    if (d.hold <= 0) {
+      const r2x = d.x - d.pvx, r2y = d.y - d.pvy;
+      d.state = 'fallen';
+      d.vx = -d.wv * r2y; d.vy = d.wv * r2x;                                    // v = ω × r — ciągłość ruchu
+      play('tear', 0.35 + Math.random() * 0.25);
+    }
+  }
+
+  /* --- luźne cyfry: grawitacja, tarcie statyczne i kinetyczne o tarczę --- */
+  function faceForces(loose, h) {
+    const g = Math.min(1, Math.hypot(Gf.x, Gf.y));
+    const N = CFG.gAcc * Math.sqrt(Math.max(0, 1 - g * g));                   // nacisk na tarczę (na jednostkę masy)
+    const ax = Gf.x * CFG.gAcc, ay = Gf.y * CFG.gAcc, aMag = Math.hypot(ax, ay);
+    const fs = CFG.muStatic * N, fk = CFG.muKinetic * N;
+    for (const d of loose) {
+      const sp = Math.hypot(d.vx, d.vy);
+      if (sp < 0.03) {
+        if (aMag <= fs) { d.vx = 0; d.vy = 0; }                                // tarcie statyczne trzyma
+        else { const k = (aMag - fk) / aMag; d.vx += ax * k * h; d.vy += ay * k * h; }
+      } else {
+        d.vx += ax * h; d.vy += ay * h;
+        const sp2 = Math.hypot(d.vx, d.vy), dec = fk * h;
+        if (sp2 <= dec) { d.vx = 0; d.vy = 0; } else { d.vx *= 1 - dec / sp2; d.vy *= 1 - dec / sp2; }
+      }
+      const v = Math.hypot(d.vx, d.vy); if (v > CFG.vMax) { d.vx *= CFG.vMax / v; d.vy *= CFG.vMax / v; }
+      // tarcie obrotowe płaskiej naklejki o tarczę
+      const decW = fk * ((d.w + d.h) / 6) / ((d.w * d.w + d.h * d.h) / 12) * h;
+      d.wv = Math.abs(d.wv) <= decW ? 0 : d.wv - Math.sign(d.wv) * decW;
+      d.wv = clamp(d.wv, -40, 40);
+    }
   }
 
   function step(dt) {
@@ -427,87 +516,64 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
     stepInput(dt);
     const gs = Math.hypot(Gs.x, Gs.y);
     const shakeEvent = shake > CFG.shakeOn && prevShake <= CFG.shakeOn;
+    const tiltF = clamp((gs - CFG.detachMinTilt) / (1 - CFG.detachMinTilt), 0, 1);
 
-    // 1) cyfry przyklejone: odklejanie tylko przy niemal pionowej tarczy, bez przesuwania
+    // 1) przyklejone: przy niemal pionie brzegi się unoszą (do peelHold), potrząsanie odkleja dalej
     for (const d of digits) {
       if (d.state !== 'stuck') continue;
-      if (gs > CFG.peelStart) d.peel = Math.min(1, d.peel + dt * CFG.peelRate * (gs - CFG.peelStart) / (1 - CFG.peelStart) * (0.5 + d.weak));
-      else d.peel = Math.max(0, d.peel - dt * CFG.peelRelax);
+      if (gs > CFG.peelStart) { if (d.peel < CFG.peelHold) d.peel = Math.min(CFG.peelHold, d.peel + dt * CFG.peelRate * (gs - CFG.peelStart) / (1 - CFG.peelStart) * (0.5 + d.weak)); }
+      else if (shake < 0.2) d.peel = Math.max(0, d.peel - dt * CFG.peelRelax);
+      if (shake > 0.25 && tiltF > 0) d.peel += dt * CFG.shakePeel * shake * tiltF * (0.3 + d.weak);
       d.settle = Math.max(0, d.settle - dt * 1.5);
+      d.ang = d.peel * 0.08 * d.sgn;
+      if (d.peel >= CFG.hangAt + (1 - d.weak) * 0.45) startHang(d);   // mocniej przyklejone potrzebują więcej
     }
+    // potrząśnięcie w przechyle zrzuca też cyfry, które właśnie wracają
+    if (shake > 0.4 && tiltF > 0) for (const d of digits) if (d.state === 'returning' && d.delay <= 0) { d.state = 'fallen'; }
 
-    // 2) zrywanie: wstrząs przy przechylonej tarczy
-    if (shake > 0.4 && gs > CFG.detachMinTilt) {
-      const tiltF = clamp((gs - CFG.detachMinTilt) / (1 - CFG.detachMinTilt), 0, 1);
-      for (const d of digits) {
-        if (d.state === 'stuck') {
-          if (d.peel > 0.3 || Math.random() < dt * CFG.detachRate * shake * tiltF * (0.3 + d.weak)) detach(d);
-        } else if (d.state === 'returning') {
-          d.state = 'fallen';
-        }
-      }
-    }
+    // 2) wiszące
+    for (const d of digits) if (d.state === 'hanging') stepHanging(d, dt, shake);
     if (digits.some(d => d.state === 'fallen')) mode = 'lost';
 
     // 3) naprawa: tarcza poziomo + potrząśnięcie
     if (gs < 0.2) flatTime += dt; else flatTime = 0;
-    if (mode === 'lost' && shakeEvent && flatTime > 0.3) {
-      mode = 'repair';
+    if (shakeEvent && flatTime > 0.3) {
       let i = 0;
-      for (const d of digits) if (d.state === 'fallen') { d.state = 'returning'; d.delay = 0.2 + (i++) * 0.2 + Math.random() * 0.15; }
+      if (mode === 'lost') mode = 'repair';
+      for (const d of digits) if (d.state === 'fallen' || d.state === 'hanging') {
+        d.state = 'returning'; d.delay = 0.2 + (i++) * 0.2 + Math.random() * 0.15; d.vx = d.vy = 0;
+      }
     }
 
-    // 4) luźne cyfry: siły
+    // 4) luźne cyfry: podkroki z kolizjami
     const loose = digits.filter(d => d.state === 'fallen');
-    const cosT = Math.sqrt(Math.max(0, 1 - Math.min(1, gs) ** 2));   // nacisk na tarczę
-    const fric = CFG.faceFriction * CFG.gAcc * cosT;                  // maks. opóźnienie od tarcia o tarczę
-    const ax = Gf.x * CFG.gAcc, ay = Gf.y * CFG.gAcc, aMag = Math.hypot(ax, ay);
-    for (const d of loose) {
-      const sp = Math.hypot(d.vx, d.vy);
-      // tarcie statyczne: leżąca cyfra rusza dopiero, gdy grawitacja pokona tarcie
-      if (!(sp < 0.02 && aMag < fric * 1.05)) { d.vx += ax * dt; d.vy += ay * dt; }
-      const sp2 = Math.hypot(d.vx, d.vy), dec = fric * dt;
-      if (sp2 <= dec) { d.vx = 0; d.vy = 0; } else { d.vx *= 1 - dec / sp2; d.vy *= 1 - dec / sp2; }
-      const decW = dec * 14;
-      d.wv = Math.abs(d.wv) <= decW ? 0 : d.wv - Math.sign(d.wv) * decW;
-      d.vx *= 1 - 0.08 * dt; d.vy *= 1 - 0.08 * dt; d.wv *= 1 - 0.3 * dt;
+    const h = dt / CFG.sub;
+    for (let k = 0; k < CFG.sub; k++) {
+      faceForces(loose, h);
+      const cs = gatherContacts(loose);
+      for (const c of cs) { prestep(c); impactSound(c.A, c.B ? 'pair' : 'rim', c.impact); }
+      for (let it = 0; it < CFG.iterations; it++) for (const c of cs) solveContact(c);
+      for (const d of loose) { d.x += d.vx * h; d.y += d.vy * h; d.ang += d.wv * h; }
+      for (let it = 0; it < CFG.posIterations; it++) for (const c of gatherContacts(loose)) correctContact(c);
     }
 
-    // 5) kontakty i rozwiązanie prędkości
-    const cs = gatherContacts(loose);
-    for (const c of cs) {
-      prestep(c);
-      if (c.B) { impactSound(c.A, 'pair', c.impact); }
-      else impactSound(c.A, 'rim', c.impact);
-    }
-    for (let it = 0; it < CFG.iterations; it++) for (const c of cs) solveContact(c);
-
-    // 6) całkowanie
-    for (const d of loose) { d.x += d.vx * dt; d.y += d.vy * dt; d.ang += d.wv * dt; }
-
-    // 7) korekta przenikania (świeże kontakty po ruchu)
-    for (let it = 0; it < CFG.posIterations; it++) for (const c of gatherContacts(loose)) correctContact(c);
-
-    // 8) powrót na miejsce (lot nad tarczą, bez kolizji)
+    // 5) powrót na miejsce (lot nad tarczą, bez kolizji)
     for (const d of digits) {
       if (d.state !== 'returning') continue;
       if (d.delay > 0) { d.delay -= dt; continue; }
-      const k = 9, c = 2 * Math.sqrt(k) * 0.9;
+      const k = 30, c = 2 * Math.sqrt(k) * 0.85;
       d.vx += (-k * (d.x - d.hx) - c * d.vx) * dt; d.vy += (-k * (d.y - d.hy) - c * d.vy) * dt;
-      d.wv += (-k * 1.4 * wrap(d.ang) - c * d.wv) * dt;
+      d.wv += (-k * 1.2 * wrap(d.ang) - c * d.wv) * dt;
       d.x += d.vx * dt; d.y += d.vy * dt; d.ang += d.wv * dt;
-      if (Math.hypot(d.x - d.hx, d.y - d.hy) < 0.004 && Math.hypot(d.vx, d.vy) < 0.04 && Math.abs(wrap(d.ang)) < 0.02) {
+      if (Math.hypot(d.x - d.hx, d.y - d.hy) < 0.004 && Math.hypot(d.vx, d.vy) < 0.05 && Math.abs(wrap(d.ang)) < 0.02) {
         d.state = 'stuck'; d.x = d.hx; d.y = d.hy; d.ang = 0; d.vx = d.vy = d.wv = 0; d.peel = 0; d.settle = 1;
         play('stick', 0.5);
       }
     }
 
-    // 9) wskazówki
+    // 6) wskazówki
     stepHands(dt);
-    if (mode === 'repair' && digits.every(d => d.state === 'stuck')) {
-      const ta = timeAngles();
-      if (['h', 'm'].every(k => Math.abs(wrap(ta[k] - hands[k].th)) < 0.03 && Math.abs(hands[k].w) < 0.05)) mode = 'ok';
-    }
+    if (mode === 'repair' && digits.every(d => d.state === 'stuck') && hands.h.st === 'locked' && hands.m.st === 'locked') mode = 'ok';
   }
 
   /* ============================ RYSOWANIE ============================ */
@@ -584,11 +650,11 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
       const p = d.peel;
       const tremor = p > 0.05 ? Math.sin(simTime * 31 + d.phase) * 0.012 * p * (0.4 + Math.min(1.5, tiltSpeed)) : 0;
       const lift = Math.max(p * 0.8, d.settle * 0.4);
-      glyph(d, cx + d.hx * R, cy + d.hy * R, p * 0.08 * d.sgn + tremor, lift, lift > 0.05 ? '#ffffff' : C['--ink']);
+      glyph(d, cx + d.hx * R, cy + d.hy * R, d.ang + tremor, lift, lift > 0.05 ? '#ffffff' : C['--ink']);
     }
     for (const d of digits) {
       if (d.state === 'stuck') continue;
-      glyph(d, cx + d.x * R, cy + d.y * R, d.ang, d.state === 'returning' ? 0.6 : 0.25, '#ffffff');
+      glyph(d, cx + d.x * R, cy + d.y * R, d.ang, d.state === 'returning' ? 0.6 : d.state === 'hanging' ? 0.5 : 0.25, '#ffffff');
     }
 
     needle('h'); needle('m');
@@ -615,15 +681,15 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
   let last = performance.now(), acc = 0, uiT = 0, lastUi = '';
   function frame(now) {
     const el = Math.min(0.1, (now - last) / 1000); last = now; acc += el;
-    let n = 0; while (acc >= CFG.dt && n < 14) { step(CFG.dt); acc -= CFG.dt; n++; }
-    if (n === 14) acc = 0;
+    let n = 0; while (acc >= CFG.dt && n < 30) { step(CFG.dt); acc -= CFG.dt; n++; }
+    if (n === 30) acc = 0;
     draw();
     uiT += el;
     if (uiT > 0.12) {
       uiT = 0;
       const deg = Math.round(Math.asin(Math.min(1, Math.hypot(Gs.x, Gs.y))) * 180 / Math.PI);
       readout.textContent = `przechył ${String(deg).padStart(2, ' ')}° · wstrząs ${shake.toFixed(2)} · ${inputMode === 'sim' ? 'symulacja' : 'czujniki'}`;
-      const peeling = digits.some(d => d.state === 'stuck' && d.peel > 0.12);
+      const peeling = digits.some(d => (d.state === 'stuck' && d.peel > 0.12) || d.state === 'hanging');
       const s = mode === 'lost' ? 'lost' : mode === 'repair' ? 'repair' : peeling ? 'peel' : 'ok';
       if (s !== lastUi) { lastUi = s; chip.dataset.s = s; chip.textContent = { ok: 'Cała', peel: 'Odkleja się', lost: 'Rozsypana', repair: 'Wraca na miejsce' }[s]; }
     }
@@ -673,7 +739,7 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
       inputMode = 'sensor';
       document.getElementById('simControls').hidden = true;
       note.hidden = false; note.textContent = 'Czujniki telefonu aktywne — przechylaj i potrząsaj telefonem.';
-      document.getElementById('hint').innerHTML = '<b>Lekki przechył</b> ugina wskazówki, <b>mocny</b> je rozbuja. <b>Prawie pion</b> odkleja cyfry. <b>Potrząśnij w przechyleniu</b> — spadną. <b>Połóż płasko i potrząśnij</b> — wrócą.';
+      document.getElementById('hint').innerHTML = '<b>Do 15°</b> wskazówki tylko drgają, <b>od ok. 40°</b> lecą w dół. <b>Prawie pion</b> unosi brzegi cyfr. <b>Potrząśnij w przechyleniu</b>: zawisną i spadną. <b>Połóż płasko i potrząśnij</b>: wrócą.';
     }
     // przyspieszenie z grawitacją = efektywna „grawitacja” w układzie telefonu (z ruchami ręki)
     let gx = -a.x / 9.81, gy = a.y / 9.81;
