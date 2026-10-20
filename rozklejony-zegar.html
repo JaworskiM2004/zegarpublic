@@ -112,14 +112,22 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
     peelHold: 0.5,          // bez potrząsania odklejenie zatrzymuje się na tej wartości — cyfra zostaje na miejscu
     peelRate: 0.30,
     peelRelax: 0.12,
-    detachMinTilt: 0.34,    // potrząsanie odrywa dopiero od ~20° przechyłu
-    shakePeel: 1.6,         // jak szybko potrząsanie odkleja
+    detachMinTilt: 0.34,    // słabe potrząsanie odrywa dopiero od ~20° przechyłu
+    detachStrongTilt: 0.21, // mocne — już od ~12° (poniżej 11,5° potrząśnięcie naprawia, więc musi zostać przerwa)
+    shakeStrongFrom: 0.7,   // od tej siły wstrząsu próg zaczyna spadać…
+    shakeStrongAt: 1.4,     // …a przy tej jest najniższy
+    shakePeel: 2.6,         // jak szybko potrząsanie odkleja
     hangAt: 0.62,           // przy tym odklejeniu cyfra puszcza z jednej strony i wisi na rogu
     shakeOn: 0.5,
 
     // Bryły cyfr (kapsuły dopasowane do kształtu znaku)
-    muStatic: 0.50,         // tarcie statyczne o tarczę: leżąca cyfra rusza dopiero przy tan θ > 0,5 (~27°)
-    muKinetic: 0.30,        // tarcie kinetyczne: po ruszeniu przyspiesza z a = g(sin θ − 0,3 cos θ)
+    // Tarcie o tarczę: f = μ·N·tanh(v / creepV). Przy małej prędkości działa jak gęsty smar (cyfra pełznie),
+    // przy większej jak zwykłe tarcie suwne. Skutki:
+    //   ~4° → pełznie ok. 0,03 promienia/s,  ~10° → ~0,08/s,  ~15° → ~0,15/s,
+    //   powyżej ~19° (tan θ > μ) grawitacja wygrywa i cyfra przyspiesza jak dotąd.
+    muKinetic: 0.35,
+    creepV: 0.15,
+    creepW: 2.0,            // to samo dla obrotu (rad/s)
     restitution: 0.25,      // odbicie cyfra–cyfra
     rimRestitution: 0.30,   // odbicie od brzegu
     friction: 0.40,         // tarcie cyfra–cyfra i cyfra–brzeg
@@ -167,7 +175,7 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
   const padG = { x: 0, y: 0 };
   const sensor = { x: 0, y: 0, omega: 0, rotAcc: 0, lastT: 0, shakePeak: 0 };
   const simShake = { t: 1, dur: 0, amp: 0, dir: 0 };
-  let inputMode = 'sim', shake = 0, prevShake = 0, tiltSpeed = 0, rotAcc = 0;
+  let inputMode = 'sim', shakePeak = 0, shake = 0, prevShake = 0, tiltSpeed = 0, rotAcc = 0;
   let mode = 'ok';              // ok | lost | repair
   let flatTime = 0, simTime = 0;
 
@@ -492,21 +500,19 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
     const g = Math.min(1, Math.hypot(Gf.x, Gf.y));
     const N = CFG.gAcc * Math.sqrt(Math.max(0, 1 - g * g));                   // nacisk na tarczę (na jednostkę masy)
     const ax = Gf.x * CFG.gAcc, ay = Gf.y * CFG.gAcc, aMag = Math.hypot(ax, ay);
-    const fs = CFG.muStatic * N, fk = CFG.muKinetic * N;
+    const fk = CFG.muKinetic * N;
     for (const d of loose) {
+      d.vx += ax * h; d.vy += ay * h;
       const sp = Math.hypot(d.vx, d.vy);
-      if (sp < 0.03) {
-        if (aMag <= fs) { d.vx = 0; d.vy = 0; }                                // tarcie statyczne trzyma
-        else { const k = (aMag - fk) / aMag; d.vx += ax * k * h; d.vy += ay * k * h; }
-      } else {
-        d.vx += ax * h; d.vy += ay * h;
-        const sp2 = Math.hypot(d.vx, d.vy), dec = fk * h;
-        if (sp2 <= dec) { d.vx = 0; d.vy = 0; } else { d.vx *= 1 - dec / sp2; d.vy *= 1 - dec / sp2; }
+      if (sp > 1e-7) {
+        const f = fk * Math.tanh(sp / CFG.creepV) * h;          // ≤ 0,2·sp na krok → stabilne, bez drgań
+        const k = Math.max(0, sp - f) / sp; d.vx *= k; d.vy *= k;
       }
       const v = Math.hypot(d.vx, d.vy); if (v > CFG.vMax) { d.vx *= CFG.vMax / v; d.vy *= CFG.vMax / v; }
       // tarcie obrotowe płaskiej naklejki o tarczę
-      const decW = fk * ((d.w + d.h) / 6) / ((d.w * d.w + d.h * d.h) / 12) * h;
-      d.wv = Math.abs(d.wv) <= decW ? 0 : d.wv - Math.sign(d.wv) * decW;
+      const fkW = fk * ((d.w + d.h) / 6) / ((d.w * d.w + d.h * d.h) / 12);
+      const aw = Math.abs(d.wv);
+      if (aw > 1e-7) d.wv *= Math.max(0, aw - fkW * Math.tanh(aw / CFG.creepW) * h) / aw;
       d.wv = clamp(d.wv, -40, 40);
     }
   }
@@ -516,14 +522,18 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
     stepInput(dt);
     const gs = Math.hypot(Gs.x, Gs.y);
     const shakeEvent = shake > CFG.shakeOn && prevShake <= CFG.shakeOn;
-    const tiltF = clamp((gs - CFG.detachMinTilt) / (1 - CFG.detachMinTilt), 0, 1);
+    // im mocniej trzęsiesz, tym mniejszy przechył wystarcza do odklejania
+    shakePeak = Math.max(shakePeak - dt * 0.5, shake);              // szczyt wstrząsu trzymany ~1–2 s
+    const strong = smooth(CFG.shakeStrongFrom, CFG.shakeStrongAt, shakePeak);
+    const thr = CFG.detachMinTilt + (CFG.detachStrongTilt - CFG.detachMinTilt) * strong;
+    const tiltF = gs > thr ? (0.12 + 0.88 * clamp((gs - thr) / (1 - thr), 0, 1)) * (1 + 0.6 * strong) : 0;
 
     // 1) przyklejone: przy niemal pionie brzegi się unoszą (do peelHold), potrząsanie odkleja dalej
     for (const d of digits) {
       if (d.state !== 'stuck') continue;
       if (gs > CFG.peelStart) { if (d.peel < CFG.peelHold) d.peel = Math.min(CFG.peelHold, d.peel + dt * CFG.peelRate * (gs - CFG.peelStart) / (1 - CFG.peelStart) * (0.5 + d.weak)); }
       else if (shake < 0.2) d.peel = Math.max(0, d.peel - dt * CFG.peelRelax);
-      if (shake > 0.25 && tiltF > 0) d.peel += dt * CFG.shakePeel * shake * tiltF * (0.3 + d.weak);
+      if (shake > 0.15 && tiltF > 0) d.peel += dt * CFG.shakePeel * shake * tiltF * (0.3 + d.weak);
       d.settle = Math.max(0, d.settle - dt * 1.5);
       d.ang = d.peel * 0.08 * d.sgn;
       if (d.peel >= CFG.hangAt + (1 - d.weak) * 0.45) startHang(d);   // mocniej przyklejone potrzebują więcej
@@ -668,11 +678,19 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
       ctx.beginPath(); ctx.arc(0, 0, capR, -Math.PI / 2, -Math.PI / 2 + TAU * battery.level);
       ctx.strokeStyle = battery.level < 0.2 ? C['--needle'] : C['--ok']; ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.stroke();
     }
+    // poziomica: pęcherzyk ucieka „pod górę”, liczba to kąt przechyłu
+    const gl = Math.min(1, Math.hypot(Gs.x, Gs.y)), tiltDeg = Math.asin(gl) * 180 / Math.PI;
+    const level = tiltDeg < 1;
+    const bR = capR * 0.68, bub = Math.min(1, tiltDeg / 30), bl = Math.hypot(Gs.x, Gs.y) || 1;
+    const bx = -Gs.x / bl * bub * bR, by = -Gs.y / bl * bub * bR;
+    ctx.beginPath(); ctx.arc(0, 0, capR * 0.2, 0, TAU); ctx.strokeStyle = '#2b2a28'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.beginPath(); ctx.arc(bx, by, capR * 0.13, 0, TAU);
+    ctx.fillStyle = level ? C['--ok'] : 'rgba(233,231,226,.22)'; ctx.fill();
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = C['--ink']; ctx.font = `500 ${R * 0.12}px ${FONT_D}`;
-    ctx.fillText(battery ? String(Math.round(battery.level * 100)) : '--', 0, -R * 0.015);
-    ctx.font = `400 ${R * 0.038}px ${FONT_M}`; ctx.fillStyle = battery && battery.charging ? C['--ok'] : C['--muted'];
-    ctx.fillText(battery ? (battery.charging ? '% ŁAD.' : '%') : 'BRAK', 0, R * 0.075);
+    ctx.fillStyle = level ? C['--ok'] : C['--ink']; ctx.font = `500 ${R * 0.11}px ${FONT_D}`;
+    ctx.fillText(Math.round(tiltDeg) + '°', R * 0.012, -R * 0.02);
+    ctx.font = `400 ${R * 0.036}px ${FONT_M}`; ctx.fillStyle = battery && battery.charging ? C['--ok'] : C['--muted'];
+    ctx.fillText(battery ? Math.round(battery.level * 100) + (battery.charging ? '% ŁAD.' : '%') : '--%', 0, R * 0.07);
     ctx.restore();
   }
 
