@@ -1,10 +1,10 @@
-<title>Rozklejony zegar</title>
+<title>Unstuck Clock</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Saira+Semi+Condensed:wght@300;500&display=swap">
 <style>
-/* Layout: czarna kolumna jak przyrząd — cichy pasek stanu, tarcza-kompas na całą szerokość, pod nią sterowanie symulacją. Czerń #000, by AMOLED wygaszał piksele */
+/* Layout: a black instrument-like column — quiet status bar, full-width compass dial, simulation controls below. Pure #000 so AMOLED pixels switch off */
 :root{
   --bg:#000; --line:#262626; --ink:#e9e7e2; --muted:#77756f; --dim:#3a3936;
   --needle:#ff3b2f; --ok:#7fd6a4; --warn:#e8c46a; --info:#7cc6fe;
@@ -47,31 +47,31 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
 
 <main class="app">
   <header>
-    <h1>Rozklejony zegar</h1>
-    <span class="chip" id="chip" data-s="ok">Cała</span>
+    <h1>Unstuck Clock</h1>
+    <span class="chip" id="chip" data-s="ok">Intact</span>
   </header>
-  <p class="readout" id="readout">przechył 0° · wstrząs 0.00 · symulacja</p>
+  <p class="readout" id="readout">tilt 0° · shake 0.00 · simulation</p>
 
-  <div class="stage" id="stage"><canvas id="dial" aria-label="Tarcza zegara w stylu kompasu, w środku poziom baterii"></canvas></div>
+  <div class="stage" id="stage"><canvas id="dial" aria-label="Compass-style clock dial with the battery level in the centre"></canvas></div>
 
   <section class="controls" id="simControls">
     <div class="padwrap">
-      <div class="pad" id="pad" tabindex="0" role="slider" aria-label="Przechył tarczy. Strzałki zmieniają kierunek." aria-valuetext="poziomo">
+      <div class="pad" id="pad" tabindex="0" role="slider" aria-label="Dial tilt. Arrow keys change the direction." aria-valuetext="level">
         <div class="ring" style="width:50%;height:50%"><span>30°</span></div>
         <div class="ring" style="width:86.6%;height:86.6%"><span>60°</span></div>
         <div class="knob" id="knob"></div>
       </div>
-      <span class="padlabel">przechył</span>
+      <span class="padlabel">tilt</span>
     </div>
     <div class="actions">
-      <button class="primary" id="shakeBtn" type="button">Potrząśnij</button>
-      <button id="levelBtn" type="button">Wypoziomuj</button>
-      <button id="sensorBtn" type="button">Użyj czujników telefonu</button>
+      <button class="primary" id="shakeBtn" type="button">Shake</button>
+      <button id="levelBtn" type="button">Level</button>
+      <button id="sensorBtn" type="button">Use phone sensors</button>
     </div>
   </section>
   <p class="note" id="note" hidden></p>
 
-  <p class="hint" id="hint">Przeciągnij kółko, żeby przechylić tarczę. <b>Do 15°</b> wskazówki tylko drgają. <b>Od ok. 40°</b> sprzęgło puszcza i lecą w dół. <b>Prawie pion</b> unosi brzegi cyfr, ale zostają na miejscu. <b>Potrząśnij w przechyleniu</b>: cyfry zawisną na rogu, a potem spadną. <b>Połóż płasko i potrząśnij</b>, a wrócą, a wskazówki odnajdą godzinę.</p>
+  <p class="hint" id="hint">Drag the knob to tilt the dial. <b>Up to 15°</b> the hands only twitch. <b>From about 40°</b> the clutch slips and they swing down. <b>Nearly vertical</b> lifts the edges of the digits, but they stay in place. <b>Shake while tilted</b>: the digits hang from one corner, then fall. <b>Lay it flat and shake</b> and they return, and the hands find the time again.</p>
 </main>
 
 <script>
@@ -80,66 +80,66 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
   const TAU = Math.PI * 2;
 
   /* =====================================================================
-     KONFIGURACJA — te same stałe przenosisz 1:1 do ESP32.
-     Jednostki: promień tarczy = 1, czas w sekundach, kąty w radianach,
-     G = wektor grawitacji w płaszczyźnie ekranu w „g” (|G| = sin przechyłu).
+     CONFIGURATION — the same constants are ported 1:1 to the ESP32.
+     Units: dial radius = 1, time in seconds, angles in radians,
+     G = gravity vector in the screen plane in "g" (|G| = sin of the tilt).
      ===================================================================== */
   const CFG = {
-    dt: 1 / 240,            // stały krok fizyki (wskazówki, odklejanie)
-    sub: 2,                 // podkroki brył cyfr → kolizje liczone 480 razy/s, bez przelatywania
-    // 1 g w promieniach tarczy na s². Fizycznie dla tarczy 2,3 cm byłoby to ~420 (nieczytelnie szybko);
-    // 40 odpowiada zegarowi ok. 25 cm — ruch ma realne przyspieszenie, a oko nadąża.
+    dt: 1 / 240,            // fixed physics step (hands, peeling)
+    sub: 2,                 // digit body substeps → collisions computed 480 times/s, no tunnelling
+    // 1 g in dial radii per s². Physically, for a 2.3 cm dial this would be ~420 (unreadably fast);
+    // 40 matches a ~25 cm clock — motion has real acceleration and the eye can follow.
     gAcc: 40,
-    vMax: 9,                // prędkość graniczna (opór powietrza) — chroni też przed tunelowaniem
-    rimR: 0.965,            // wewnętrzna krawędź, o którą stukają cyfry
-    homeR: 0.74,            // promień, na którym przyklejone są cyfry
+    vMax: 9,                // terminal velocity (air drag) — also prevents tunnelling
+    rimR: 0.965,            // inner rim the digits knock against
+    homeR: 0.74,            // radius at which the digits are stuck
 
-    // Wskazówka = ciężkie wahadło na osi + cierne sprzęgło mechanizmu, które może się ślizgać.
-    // Stany: locked (trzyma godzinę), free (sprzęgło puściło, wisi i buja się), seek (łapie i szuka godziny jak kompas).
-    // kappa: moment grawitacji przy |G|=1; kLock: sztywność sprzęgła (× kappa); zLock/zSeek/zFree: współczynnik tłumienia ζ;
-    // kSeek: sztywność szukania (× I), seekMax: maks. moment szukania (× kappa); mu: tarcie suche osi.
+    // Hand = heavy pendulum on an axle + a friction clutch in the movement that can slip.
+    // States: locked (holds the time), free (clutch slipped, hangs and swings), seek (re-engages and finds the time like a compass).
+    // kappa: gravity torque at |G|=1; kLock: clutch stiffness (× kappa); zLock/zSeek/zFree: damping ratio ζ;
+    // kSeek: seek stiffness (× I), seekMax: max seek torque (× kappa); mu: dry friction of the axle.
     hands: {
       h: { I: 1.8, kappa: 52, kLock: 14, zLock: 0.32, kSeek: 11, zSeek: 0.55, seekMax: 0.38, zFree: 0.26, mu: 0.35, len: 0.50, wid: 0.075, tail: 0.30, front: 'ink' },
       m: { I: 1.0, kappa: 40, kLock: 14, zLock: 0.30, kSeek: 14, zSeek: 0.50, seekMax: 0.38, zFree: 0.22, mu: 0.2, len: 0.74, wid: 0.06, tail: 0.34, front: 'needle' }
     },
-    handSoftFrom: 0.26,     // sin 15°: do tego przechyłu sprzęgło jest pełne — wskazówki tylko drgają przy szarpnięciu
-    handRelease: 0.68,      // sin 43°: powyżej sprzęgło zawsze puszcza i wskazówki lecą w dół
-    handBreak: 0.5,         // sprzęgło puszcza też wcześniej, gdy moment grawitacji > 0,5·kappa (wskazówka w poprzek spadku)
-    handGrab: 0.30,         // sin 17°: poniżej sprzęgło łapie z powrotem
+    handSoftFrom: 0.26,     // sin 15°: up to this tilt the clutch fully holds — hands only twitch when jerked
+    handRelease: 0.68,      // sin 43°: above this the clutch always slips and the hands swing down
+    handBreak: 0.5,         // the clutch also slips earlier when gravity torque > 0.5·kappa (hand across the slope)
+    handGrab: 0.30,         // sin 17°: below this the clutch re-engages
 
-    // Naklejki
-    peelStart: 0.92,        // sin 67°: od tego przechyłu brzegi zaczynają się unosić
-    peelHold: 0.5,          // bez potrząsania odklejenie zatrzymuje się na tej wartości — cyfra zostaje na miejscu
+    // Stickers
+    peelStart: 0.92,        // sin 67°: from this tilt the edges start to lift
+    peelHold: 0.5,          // without shaking, peeling stops at this value — the digit stays in place
     peelRate: 0.30,
     peelRelax: 0.12,
-    detachMinTilt: 0.34,    // słabe potrząsanie odrywa dopiero od ~20° przechyłu
-    detachStrongTilt: 0.21, // mocne — już od ~12° (poniżej 11,5° potrząśnięcie naprawia, więc musi zostać przerwa)
-    shakeStrongFrom: 0.7,   // od tej siły wstrząsu próg zaczyna spadać…
-    shakeStrongAt: 1.4,     // …a przy tej jest najniższy
-    shakePeel: 2.6,         // jak szybko potrząsanie odkleja
-    hangAt: 0.62,           // przy tym odklejeniu cyfra puszcza z jednej strony i wisi na rogu
+    detachMinTilt: 0.34,    // a weak shake only tears digits off from ~20° of tilt
+    detachStrongTilt: 0.21, // a strong one already from ~12° (below 11.5° shaking repairs, so a gap must remain)
+    shakeStrongFrom: 0.7,   // from this shake strength the threshold starts to drop…
+    shakeStrongAt: 1.4,     // …and at this one it is lowest
+    shakePeel: 2.6,         // how fast shaking peels
+    hangAt: 0.62,           // at this peel level the digit lets go on one side and hangs from a corner
     shakeOn: 0.5,
 
-    // Bryły cyfr (kapsuły dopasowane do kształtu znaku)
-    // Tarcie o tarczę: f = μ·N·tanh(v / creepV). Przy małej prędkości działa jak gęsty smar (cyfra pełznie),
-    // przy większej jak zwykłe tarcie suwne. Skutki:
-    //   ~4° → pełznie ok. 0,03 promienia/s,  ~10° → ~0,08/s,  ~15° → ~0,15/s,
-    //   powyżej ~19° (tan θ > μ) grawitacja wygrywa i cyfra przyspiesza jak dotąd.
+    // Digit bodies (capsules fitted to the glyph shape)
+    // Friction with the dial: f = μ·N·tanh(v / creepV). At low speed it acts like thick grease (the digit creeps),
+    // at higher speed like ordinary sliding friction. Effects:
+    //   ~4° → creeps ~0.03 radius/s,  ~10° → ~0.08/s,  ~15° → ~0.15/s,
+    //   above ~19° (tan θ > μ) gravity wins and the digit accelerates as before.
     muKinetic: 0.35,
     creepV: 0.15,
-    creepW: 2.0,            // to samo dla obrotu (rad/s)
-    restitution: 0.25,      // odbicie cyfra–cyfra
-    rimRestitution: 0.30,   // odbicie od brzegu
-    friction: 0.40,         // tarcie cyfra–cyfra i cyfra–brzeg
-    bounceMin: 0.25,        // poniżej tej prędkości zderzenia nie ma odbicia (spoczynek bez drgań)
+    creepW: 2.0,            // the same for rotation (rad/s)
+    restitution: 0.25,      // digit–digit restitution
+    rimRestitution: 0.30,   // rim restitution
+    friction: 0.40,         // digit–digit and digit–rim friction
+    bounceMin: 0.25,        // below this impact speed there is no bounce (rest without jitter)
     iterations: 10,
     posIterations: 3,
     slop: 0.0015,
     baumgarte: 0.5,
-    soundMin: 0.35          // minimalna prędkość zderzenia, która daje dźwięk
+    soundMin: 0.35          // minimum impact speed that makes a sound
   };
 
-  /* ---------------------------- matematyka ---------------------------- */
+  /* ------------------------------- math -------------------------------- */
   const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
   const wrap = a => ((a + Math.PI) % TAU + TAU) % TAU - Math.PI;
 
@@ -148,7 +148,7 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
     const t = L2 > 1e-12 ? clamp(((px - ax) * dx + (py - ay) * dy) / L2, 0, 1) : 0;
     return [ax + dx * t, ay + dy * t];
   }
-  // najbliższe punkty dwóch odcinków (Ericson, Real-Time Collision Detection)
+  // closest points of two segments (Ericson, Real-Time Collision Detection)
   function segSeg(p1x, p1y, q1x, q1y, p2x, p2y, q2x, q2y) {
     const d1x = q1x - p1x, d1y = q1y - p1y, d2x = q2x - p2x, d2y = q2y - p2y, rx = p1x - p2x, ry = p1y - p2y;
     const a = d1x * d1x + d1y * d1y, e = d2x * d2x + d2y * d2y, f = d2x * rx + d2y * ry, EPS = 1e-10;
@@ -169,9 +169,9 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
     return [p1x + d1x * s, p1y + d1y * s, p2x + d2x * t, p2y + d2y * t];
   }
 
-  /* ------------------------------ stan ------------------------------- */
-  const Gf = { x: 0, y: 0 };   // grawitacja + przyspieszenia ruchu (szybka) — napędza fizykę
-  const Gs = { x: 0, y: 0 };   // wolno wygładzona — „jak bardzo jest przechylony”
+  /* ------------------------------ state ------------------------------ */
+  const Gf = { x: 0, y: 0 };   // gravity + motion acceleration (fast) — drives the physics
+  const Gs = { x: 0, y: 0 };   // slowly smoothed — "how tilted it is"
   const padG = { x: 0, y: 0 };
   const sensor = { x: 0, y: 0, omega: 0, rotAcc: 0, lastT: 0, shakePeak: 0 };
   const simShake = { t: 1, dur: 0, amp: 0, dir: 0 };
@@ -188,7 +188,7 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
   }
   { const ta = timeAngles(); hands.h.th = ta.h; hands.m.th = ta.m; }
 
-  /* ------------------------- cyfry i ich bryły ------------------------- */
+  /* ------------------------- digits and their bodies ------------------------- */
   const FONT_D = "'Saira Semi Condensed','Arial Narrow',system-ui,sans-serif";
   const FONT_M = "'JetBrains Mono',ui-monospace,Menlo,monospace";
   const cardinal = n => n % 3 === 0;
@@ -203,9 +203,9 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
       const L = mt.actualBoundingBoxLeft || 0, Rr = mt.actualBoundingBoxRight || mt.width;
       const asc = mt.actualBoundingBoxAscent || size * REF * 0.72, desc = mt.actualBoundingBoxDescent || 0;
       const w = (L + Rr) / REF + 0.012, h = (asc + desc) / REF + 0.012;
-      // przesunięcie tak, by środek obrysu znaku leżał w środku bryły
+      // offset so the glyph's outline centre sits at the body's centre
       const ox = -(Rr - L) / 2 / REF, oy = (asc - desc) / 2 / REF;
-      // kapsuła: odcinek wzdłuż dłuższego boku, promień = połowa krótszego
+      // capsule: segment along the longer side, radius = half of the shorter one
       const tall = h >= w, r = (tall ? w : h) / 2, hl = Math.max(0, ((tall ? h : w) - 2 * r) / 2);
       const m = w * h, I = m * (w * w + h * h) / 12;
       const a = n / 12 * TAU, hx = CFG.homeR * Math.sin(a), hy = -CFG.homeR * Math.cos(a);
@@ -218,7 +218,7 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
         delay: 0, lastSnd: -1
       });
     }
-    // mniej więcej połowa cyfr jest „słabiej przyklejona”
+    // roughly half of the digits are "less firmly stuck"
     digits.forEach((d, i) => { d.weak = (i % 2 ? 0.15 : 0.6) + Math.random() * 0.4; });
   }
 
@@ -228,7 +228,7 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
     return [b.x - ex, b.y - ey, b.x + ex, b.y + ey];
   }
 
-  /* --------------------------- kontakty ---------------------------- */
+  /* --------------------------- contacts ---------------------------- */
   function pushFound(found, A, px, py, nx, ny, pen) {
     for (const f of found) {
       if ((f.px - px) ** 2 + (f.py - py) ** 2 < 0.0003) { if (pen > f.pen) Object.assign(f, { px, py, nx, ny, pen }); return; }
@@ -327,7 +327,7 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
     return out;
   }
 
-  /* ----------------------------- dźwięk ----------------------------- */
+  /* ----------------------------- sound ------------------------------ */
   const Snd = { ac: null, noise: null, times: [] };
   function ensureAudio() {
     try {
@@ -344,10 +344,10 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
   addEventListener('pointerdown', ensureAudio, { passive: true });
   addEventListener('touchend', ensureAudio, { passive: true });
   const VOICES = {
-    rim:   { f: 760,  fj: 220, q: 5,   dur: 0.075, tone: 0.55, noise: 0.65 },  // tępe „stuk” o krawędź
-    pair:  { f: 2150, fj: 500, q: 8,   dur: 0.04,  tone: 0.45, noise: 0.4 },   // jasne „klik” cyfra o cyfrę
-    tear:  { f: 2800, fj: 700, q: 1.1, dur: 0.16,  tone: 0,    noise: 0.9 },   // oderwanie naklejki
-    stick: { f: 420,  fj: 40,  q: 3,   dur: 0.09,  tone: 0.8,  noise: 0.2 }    // przyklejenie z powrotem
+    rim:   { f: 760,  fj: 220, q: 5,   dur: 0.075, tone: 0.55, noise: 0.65 },  // dull "knock" against the rim
+    pair:  { f: 2150, fj: 500, q: 8,   dur: 0.04,  tone: 0.45, noise: 0.4 },   // bright "click" of digit against digit
+    tear:  { f: 2800, fj: 700, q: 1.1, dur: 0.16,  tone: 0,    noise: 0.9 },   // sticker tearing off
+    stick: { f: 420,  fj: 40,  q: 3,   dur: 0.09,  tone: 0.8,  noise: 0.2 }    // sticking back on
   };
   function play(kind, vol) {
     const ac = Snd.ac; if (!ac || ac.state !== 'running' || vol < 0.02) return;
@@ -375,7 +375,7 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
     play(kind, clamp((speed - CFG.soundMin) / 4, 0.06, 1));
   }
 
-  /* ----------------------------- bateria ----------------------------- */
+  /* ----------------------------- battery ----------------------------- */
   let battery = null;
   if (navigator.getBattery) {
     navigator.getBattery().then(b => {
@@ -384,7 +384,7 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
     }).catch(() => {});
   }
 
-  /* ========================== KROK FIZYKI =========================== */
+  /* ========================== PHYSICS STEP ========================== */
   function stepInput(dt) {
     prevShake = shake;
     shake = Math.max(0, shake - dt * 1.2);
@@ -392,7 +392,7 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
     if (inputMode === 'sim') {
       tx = padG.x; ty = padG.y;
       if (simShake.t < simShake.dur) {
-        // potrząśnięcie = szybkie przyspieszenia w płaszczyźnie ekranu
+        // shake = fast accelerations in the screen plane
         const env = 1 - simShake.t / simShake.dur, ph = TAU * 7.5 * simShake.t;
         const a = simShake.amp * env * Math.sin(ph), b = simShake.amp * 0.4 * env * Math.sin(ph * 1.37 + 1);
         tx += Math.cos(simShake.dir) * a - Math.sin(simShake.dir) * b;
@@ -425,7 +425,7 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
       const P = CFG.hands[key], H = hands[key];
       const err = wrap(ta[key] - H.th);
 
-      // przejścia stanów sprzęgła (z histerezą)
+      // clutch state transitions (with hysteresis)
       if (mode === 'lost') H.st = 'free';
       else if (H.st === 'locked') {
         const hold = gs * Math.abs(Math.sin(phis - H.th));
@@ -437,32 +437,32 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
         else if (Math.abs(err) < 0.025 && Math.abs(H.w) < 0.08) H.st = 'locked';
       }
 
-      let tau = P.kappa * g * Math.sin(phi - H.th) + P.I * rotAcc;     // grawitacja (z ruchem ręki) + obrót telefonu
+      let tau = P.kappa * g * Math.sin(phi - H.th) + P.I * rotAcc;     // gravity (incl. hand motion) + phone rotation
       let c;
       if (H.st === 'locked') {
-        // sprzęgło mięknie między 15° a 43°: wskazówka coraz wyraźniej się wychyla, aż puści
+        // the clutch softens between 15° and 43°: the hand leans more and more until it slips
         const k = P.kLock * P.kappa * (1 - 0.85 * smooth(CFG.handSoftFrom, CFG.handRelease, gs));
         tau += k * err; c = 2 * P.zLock * Math.sqrt(k * P.I);
       } else if (H.st === 'seek') {
         const k = P.kSeek * P.I, lim = P.seekMax * P.kappa;
         tau += clamp(k * err, -lim, lim); c = 2 * P.zSeek * Math.sqrt(k * P.I);
       } else {
-        // wolne wahadło: ζ ≈ 0,22–0,26 → kilka wahnięć i wyraźne hamowanie w ~2 s
+        // free pendulum: ζ ≈ 0.22–0.26 → a few swings and clear braking within ~2 s
         c = 2 * P.zFree * P.I * Math.sqrt(P.kappa * Math.max(g, 0.2) / P.I);
       }
       tau -= c * H.w;
-      if (Math.abs(H.w) < 0.03 && Math.abs(tau) <= P.mu) { H.w = 0; continue; }   // tarcie statyczne osi
+      if (Math.abs(H.w) < 0.03 && Math.abs(tau) <= P.mu) { H.w = 0; continue; }   // static friction of the axle
       tau -= P.mu * Math.sign(H.w || tau);
       H.w += tau / P.I * dt;
       H.th += H.w * dt;
     }
   }
 
-  /* --- cyfra wisząca na jednym rogu: wahadło fizyczne wokół punktu, który jeszcze trzyma --- */
+  /* --- digit hanging from one corner: a physical pendulum around the point that still holds --- */
   function startHang(d) {
-    const gl = Math.hypot(Gs.x, Gs.y) || 1, ux = -Gs.x / gl, uy = -Gs.y / gl;   // kierunek „pod górę”
+    const gl = Math.hypot(Gs.x, Gs.y) || 1, ux = -Gs.x / gl, uy = -Gs.y / gl;   // "uphill" direction
     const ca = Math.cos(d.ang), sa = Math.sin(d.ang);
-    const lx = ux * ca + uy * sa, ly = -ux * sa + uy * ca;                     // w układzie cyfry
+    const lx = ux * ca + uy * sa, ly = -ux * sa + uy * ca;                     // in the digit's frame
     const qx = Math.abs(lx) > 0.3 ? Math.sign(lx) * d.w * 0.42 : 0;
     const qy = Math.abs(ly) > 0.3 ? Math.sign(ly) * d.h * 0.42 : 0;
     d.qx = qx; d.qy = qy || (qx ? 0 : d.h * 0.42);
@@ -474,42 +474,42 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
 
   function stepHanging(d, dt, shakeNow) {
     const ca = Math.cos(d.ang), sa = Math.sin(d.ang);
-    const rx = -(d.qx * ca - d.qy * sa), ry = -(d.qx * sa + d.qy * ca);        // od zawiasu do środka
+    const rx = -(d.qx * ca - d.qy * sa), ry = -(d.qx * sa + d.qy * ca);        // from the hinge to the centre
     const ax = Gf.x * CFG.gAcc, ay = Gf.y * CFG.gAcc;
     const q2 = d.qx * d.qx + d.qy * d.qy, Ip = (d.w * d.w + d.h * d.h) / 12 + q2;
     const tauG = rx * ay - ry * ax;
-    const kS = 3 * CFG.gAcc * Math.sqrt(q2) * d.hold;                            // klej, który jeszcze trzyma
+    const kS = 3 * CFG.gAcc * Math.sqrt(q2) * d.hold;                            // glue that still holds
     const tauS = -kS * wrap(d.ang - d.ang0);
     d.wv += (tauG + tauS) / Ip * dt;
     d.wv *= Math.exp(-dt * 2.5);
     d.ang += d.wv * dt;
     const c2 = Math.cos(d.ang), s2 = Math.sin(d.ang);
     d.x = d.pvx - (d.qx * c2 - d.qy * s2); d.y = d.pvy - (d.qx * s2 + d.qy * c2);
-    // klej puszcza: szybciej przy potrząsaniu i przy mocnym bujaniu
+    // the glue gives way: faster when shaking and when swinging hard
     d.hold -= dt * (0.25 + 2.4 * shakeNow * (0.4 + d.weak) + 0.6 * Math.min(4, Math.abs(d.wv)));
     if (d.hold <= 0) {
       const r2x = d.x - d.pvx, r2y = d.y - d.pvy;
       d.state = 'fallen';
-      d.vx = -d.wv * r2y; d.vy = d.wv * r2x;                                    // v = ω × r — ciągłość ruchu
+      d.vx = -d.wv * r2y; d.vy = d.wv * r2x;                                    // v = ω × r — continuity of motion
       play('tear', 0.35 + Math.random() * 0.25);
     }
   }
 
-  /* --- luźne cyfry: grawitacja, tarcie statyczne i kinetyczne o tarczę --- */
+  /* --- loose digits: gravity, static and kinetic friction with the dial --- */
   function faceForces(loose, h) {
     const g = Math.min(1, Math.hypot(Gf.x, Gf.y));
-    const N = CFG.gAcc * Math.sqrt(Math.max(0, 1 - g * g));                   // nacisk na tarczę (na jednostkę masy)
+    const N = CFG.gAcc * Math.sqrt(Math.max(0, 1 - g * g));                   // normal force on the dial (per unit mass)
     const ax = Gf.x * CFG.gAcc, ay = Gf.y * CFG.gAcc, aMag = Math.hypot(ax, ay);
     const fk = CFG.muKinetic * N;
     for (const d of loose) {
       d.vx += ax * h; d.vy += ay * h;
       const sp = Math.hypot(d.vx, d.vy);
       if (sp > 1e-7) {
-        const f = fk * Math.tanh(sp / CFG.creepV) * h;          // ≤ 0,2·sp na krok → stabilne, bez drgań
+        const f = fk * Math.tanh(sp / CFG.creepV) * h;          // ≤ 0.2·sp per step → stable, no jitter
         const k = Math.max(0, sp - f) / sp; d.vx *= k; d.vy *= k;
       }
       const v = Math.hypot(d.vx, d.vy); if (v > CFG.vMax) { d.vx *= CFG.vMax / v; d.vy *= CFG.vMax / v; }
-      // tarcie obrotowe płaskiej naklejki o tarczę
+      // rotational friction of a flat sticker on the dial
       const fkW = fk * ((d.w + d.h) / 6) / ((d.w * d.w + d.h * d.h) / 12);
       const aw = Math.abs(d.wv);
       if (aw > 1e-7) d.wv *= Math.max(0, aw - fkW * Math.tanh(aw / CFG.creepW) * h) / aw;
@@ -522,13 +522,13 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
     stepInput(dt);
     const gs = Math.hypot(Gs.x, Gs.y);
     const shakeEvent = shake > CFG.shakeOn && prevShake <= CFG.shakeOn;
-    // im mocniej trzęsiesz, tym mniejszy przechył wystarcza do odklejania
-    shakePeak = Math.max(shakePeak - dt * 0.5, shake);              // szczyt wstrząsu trzymany ~1–2 s
+    // the harder you shake, the smaller the tilt needed to peel
+    shakePeak = Math.max(shakePeak - dt * 0.5, shake);              // shake peak held for ~1–2 s
     const strong = smooth(CFG.shakeStrongFrom, CFG.shakeStrongAt, shakePeak);
     const thr = CFG.detachMinTilt + (CFG.detachStrongTilt - CFG.detachMinTilt) * strong;
     const tiltF = gs > thr ? (0.12 + 0.88 * clamp((gs - thr) / (1 - thr), 0, 1)) * (1 + 0.6 * strong) : 0;
 
-    // 1) przyklejone: przy niemal pionie brzegi się unoszą (do peelHold), potrząsanie odkleja dalej
+    // 1) stuck: near vertical the edges lift (up to peelHold), shaking peels further
     for (const d of digits) {
       if (d.state !== 'stuck') continue;
       if (gs > CFG.peelStart) { if (d.peel < CFG.peelHold) d.peel = Math.min(CFG.peelHold, d.peel + dt * CFG.peelRate * (gs - CFG.peelStart) / (1 - CFG.peelStart) * (0.5 + d.weak)); }
@@ -536,16 +536,16 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
       if (shake > 0.15 && tiltF > 0) d.peel += dt * CFG.shakePeel * shake * tiltF * (0.3 + d.weak);
       d.settle = Math.max(0, d.settle - dt * 1.5);
       d.ang = d.peel * 0.08 * d.sgn;
-      if (d.peel >= CFG.hangAt + (1 - d.weak) * 0.45) startHang(d);   // mocniej przyklejone potrzebują więcej
+      if (d.peel >= CFG.hangAt + (1 - d.weak) * 0.45) startHang(d);   // firmly stuck ones need more
     }
-    // potrząśnięcie w przechyle zrzuca też cyfry, które właśnie wracają
+    // shaking while tilted also knocks off digits that are just returning
     if (shake > 0.4 && tiltF > 0) for (const d of digits) if (d.state === 'returning' && d.delay <= 0) { d.state = 'fallen'; }
 
-    // 2) wiszące
+    // 2) hanging
     for (const d of digits) if (d.state === 'hanging') stepHanging(d, dt, shake);
     if (digits.some(d => d.state === 'fallen')) mode = 'lost';
 
-    // 3) naprawa: tarcza poziomo + potrząśnięcie
+    // 3) repair: dial level + shake
     if (gs < 0.2) flatTime += dt; else flatTime = 0;
     if (shakeEvent && flatTime > 0.3) {
       let i = 0;
@@ -555,7 +555,7 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
       }
     }
 
-    // 4) luźne cyfry: podkroki z kolizjami
+    // 4) loose digits: substeps with collisions
     const loose = digits.filter(d => d.state === 'fallen');
     const h = dt / CFG.sub;
     for (let k = 0; k < CFG.sub; k++) {
@@ -567,7 +567,7 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
       for (let it = 0; it < CFG.posIterations; it++) for (const c of gatherContacts(loose)) correctContact(c);
     }
 
-    // 5) powrót na miejsce (lot nad tarczą, bez kolizji)
+    // 5) return to place (flying over the dial, no collisions)
     for (const d of digits) {
       if (d.state !== 'returning') continue;
       if (d.delay > 0) { d.delay -= dt; continue; }
@@ -581,12 +581,12 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
       }
     }
 
-    // 6) wskazówki
+    // 6) hands
     stepHands(dt);
     if (mode === 'repair' && digits.every(d => d.state === 'stuck') && hands.h.st === 'locked' && hands.m.st === 'locked') mode = 'ok';
   }
 
-  /* ============================ RYSOWANIE ============================ */
+  /* ============================= DRAWING ============================= */
   const cvs = document.getElementById('dial'), ctx = cvs.getContext('2d'), stage = document.getElementById('stage');
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   let W = 300, R = 130, cx = 150, cy = 150, dpr = 1;
@@ -643,7 +643,7 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
     ctx.fillStyle = C['--needle']; ctx.fill();
     ctx.restore();
 
-    // ślad po cyfrze, która się odkleiła
+    // mark left by a digit that came off
     for (const d of digits) {
       const vis = d.state === 'stuck' ? Math.min(1, d.peel * 1.2) : 1;
       if (vis < 0.03) continue;
@@ -654,7 +654,7 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
       ctx.restore();
     }
 
-    // przyklejone: stoją w miejscu; odklejone przy pionie lekko się unoszą i drżą
+    // stuck: stay in place; peeled near vertical: lift slightly and tremble
     for (const d of digits) {
       if (d.state !== 'stuck') continue;
       const p = d.peel;
@@ -669,7 +669,7 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
 
     needle('h'); needle('m');
 
-    // środek: bateria
+    // centre: battery
     const capR = R * 0.17;
     ctx.save(); ctx.translate(cx, cy);
     ctx.beginPath(); ctx.arc(0, 0, capR, 0, TAU); ctx.fillStyle = '#000'; ctx.fill();
@@ -678,7 +678,7 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
       ctx.beginPath(); ctx.arc(0, 0, capR, -Math.PI / 2, -Math.PI / 2 + TAU * battery.level);
       ctx.strokeStyle = battery.level < 0.2 ? C['--needle'] : C['--ok']; ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.stroke();
     }
-    // poziomica: pęcherzyk ucieka „pod górę”, liczba to kąt przechyłu
+    // spirit level: the bubble drifts "uphill", the number is the tilt angle
     const gl = Math.min(1, Math.hypot(Gs.x, Gs.y)), tiltDeg = Math.asin(gl) * 180 / Math.PI;
     const level = tiltDeg < 1;
     const bR = capR * 0.68, bub = Math.min(1, tiltDeg / 30), bl = Math.hypot(Gs.x, Gs.y) || 1;
@@ -690,11 +690,11 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
     ctx.fillStyle = level ? C['--ok'] : C['--ink']; ctx.font = `500 ${R * 0.11}px ${FONT_D}`;
     ctx.fillText(Math.round(tiltDeg) + '°', R * 0.012, -R * 0.02);
     ctx.font = `400 ${R * 0.036}px ${FONT_M}`; ctx.fillStyle = battery && battery.charging ? C['--ok'] : C['--muted'];
-    ctx.fillText(battery ? Math.round(battery.level * 100) + (battery.charging ? '% ŁAD.' : '%') : '--%', 0, R * 0.07);
+    ctx.fillText(battery ? Math.round(battery.level * 100) + (battery.charging ? '% CHG' : '%') : '--%', 0, R * 0.07);
     ctx.restore();
   }
 
-  /* ============================== PĘTLA ============================== */
+  /* ============================== LOOP =============================== */
   const chip = document.getElementById('chip'), readout = document.getElementById('readout'), note = document.getElementById('note');
   let last = performance.now(), acc = 0, uiT = 0, lastUi = '';
   function frame(now) {
@@ -706,10 +706,10 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
     if (uiT > 0.12) {
       uiT = 0;
       const deg = Math.round(Math.asin(Math.min(1, Math.hypot(Gs.x, Gs.y))) * 180 / Math.PI);
-      readout.textContent = `przechył ${String(deg).padStart(2, ' ')}° · wstrząs ${shake.toFixed(2)} · ${inputMode === 'sim' ? 'symulacja' : 'czujniki'}`;
+      readout.textContent = `tilt ${String(deg).padStart(2, ' ')}° · shake ${shake.toFixed(2)} · ${inputMode === 'sim' ? 'simulation' : 'sensors'}`;
       const peeling = digits.some(d => (d.state === 'stuck' && d.peel > 0.12) || d.state === 'hanging');
       const s = mode === 'lost' ? 'lost' : mode === 'repair' ? 'repair' : peeling ? 'peel' : 'ok';
-      if (s !== lastUi) { lastUi = s; chip.dataset.s = s; chip.textContent = { ok: 'Cała', peel: 'Odkleja się', lost: 'Rozsypana', repair: 'Wraca na miejsce' }[s]; }
+      if (s !== lastUi) { lastUi = s; chip.dataset.s = s; chip.textContent = { ok: 'Intact', peel: 'Peeling', lost: 'Scattered', repair: 'Returning' }[s]; }
     }
     requestAnimationFrame(frame);
   }
@@ -718,14 +718,14 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
     : Promise.resolve();
   fontsReady.then(() => { buildDigits(); last = performance.now(); requestAnimationFrame(frame); });
 
-  /* ======================= STEROWANIE: SYMULACJA ======================= */
+  /* ======================= CONTROLS: SIMULATION ======================= */
   const pad = document.getElementById('pad'), knob = document.getElementById('knob');
   function setPad(x, y) {
     const l = Math.hypot(x, y); if (l > 1) { x /= l; y /= l; }
     padG.x = x; padG.y = y;
     knob.style.transform = `translate(${x * 51}px, ${y * 51}px)`;
     const deg = Math.round(Math.asin(Math.min(1, Math.hypot(x, y))) * 180 / Math.PI);
-    pad.setAttribute('aria-valuetext', deg < 3 ? 'poziomo' : `przechył ${deg} stopni`);
+    pad.setAttribute('aria-valuetext', deg < 3 ? 'level' : `tilt ${deg} degrees`);
   }
   function padPoint(e) {
     const r = pad.getBoundingClientRect();
@@ -748,7 +748,7 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
     levelAnim = requestAnimationFrame(go);
   });
 
-  /* ===================== STEROWANIE: CZUJNIKI TELEFONU ===================== */
+  /* ===================== CONTROLS: PHONE SENSORS ===================== */
   const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   function onMotion(e) {
     const a = e.accelerationIncludingGravity;
@@ -756,10 +756,10 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
     if (inputMode !== 'sensor') {
       inputMode = 'sensor';
       document.getElementById('simControls').hidden = true;
-      note.hidden = false; note.textContent = 'Czujniki telefonu aktywne — przechylaj i potrząsaj telefonem.';
-      document.getElementById('hint').innerHTML = '<b>Do 15°</b> wskazówki tylko drgają, <b>od ok. 40°</b> lecą w dół. <b>Prawie pion</b> unosi brzegi cyfr. <b>Potrząśnij w przechyleniu</b>: zawisną i spadną. <b>Połóż płasko i potrząśnij</b>: wrócą.';
+      note.hidden = false; note.textContent = 'Phone sensors active — tilt and shake your phone.';
+      document.getElementById('hint').innerHTML = '<b>Up to 15°</b> the hands only twitch, <b>from about 40°</b> they swing down. <b>Nearly vertical</b> lifts the edges of the digits. <b>Shake while tilted</b>: they hang and fall. <b>Lay it flat and shake</b>: they come back.';
     }
-    // przyspieszenie z grawitacją = efektywna „grawitacja” w układzie telefonu (z ruchami ręki)
+    // acceleration including gravity = effective "gravity" in the phone's frame (incl. hand motion)
     let gx = -a.x / 9.81, gy = a.y / 9.81;
     if (isIOS) { gx = -gx; gy = -gy; }
     const ang = ((screen.orientation && screen.orientation.angle) || window.orientation || 0) * Math.PI / 180;
@@ -785,7 +785,7 @@ button:focus-visible,.pad:focus-visible{outline:2px solid var(--ink);outline-off
     setTimeout(() => {
       if (inputMode !== 'sensor') {
         note.hidden = false;
-        note.textContent = 'Ten podgląd nie dostaje danych z czujników ruchu. Otwórz plik w przeglądarce pod adresem https (np. raw.githack.com) — tam przechył i potrząśnięcie działają naprawdę. Tutaj steruj kółkiem i przyciskiem.';
+        note.textContent = 'This preview gets no motion-sensor data. Open the file in a browser over https (e.g. raw.githack.com) — tilting and shaking work for real there. Here, use the knob and the button.';
       }
     }, 1200);
   });
